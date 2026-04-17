@@ -31,7 +31,8 @@ type CompositeFoodDetail = {
 type MealFoodDetail = IngredientFoodDetail | CompositeFoodDetail;
 
 function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+  const scaled = Math.round(value * 100);
+  return scaled / 100;
 }
 
 async function getCompositeMacros(compositeFoodId: string) {
@@ -53,12 +54,12 @@ async function getCompositeMacros(compositeFoodId: string) {
 async function getMealFoodDetails(mealId: string): Promise<MealFoodDetail[]> {
   const foods = await mealRepository.findFoodsByMealId(mealId);
 
-  return await Promise.all(
+  const details = await Promise.all(
     foods.map(async (mf): Promise<MealFoodDetail> => {
       if (mf.ingredient_id) {
         const ing = await ingredientRepository.findById(mf.ingredient_id);
 
-        return {
+        const ingredientDetail: IngredientFoodDetail = {
           id: mf.id,
           type: "ingredient",
           ingredientId: mf.ingredient_id,
@@ -68,13 +69,14 @@ async function getMealFoodDetails(mealId: string): Promise<MealFoodDetail[]> {
           carbs: ing?.carbs ?? 0,
           fats: ing?.fats ?? 0,
         };
+        return ingredientDetail;
       }
 
       const compositeFoodId = mf.composite_food_id!;
       const cf = await compositeFoodRepository.findById(compositeFoodId);
       const macros = await getCompositeMacros(compositeFoodId);
 
-      return {
+      const compositeDetail: CompositeFoodDetail = {
         id: mf.id,
         type: "composite",
         compositeFoodId,
@@ -84,8 +86,10 @@ async function getMealFoodDetails(mealId: string): Promise<MealFoodDetail[]> {
         carbs: round2(macros.carbs),
         fats: round2(macros.fats),
       };
+      return compositeDetail;
     })
   );
+  return details;
 }
 
 function sumMacros(foods: MealFoodDetail[]) {
@@ -111,26 +115,31 @@ export const mealService = {
   async create(input: CreateMealData) {
     const meal = await mealRepository.createWithFoods(input);
     const foods = await getMealFoodDetails(meal.id);
-    return {
+    const macros = sumMacros(foods);
+    const response = {
       ...meal,
       foods,
-      ...sumMacros(foods),
+      ...macros,
     };
+    return response;
   },
 
   async list() {
     const meals = await mealRepository.findAll();
 
-    return await Promise.all(
+    const responses = await Promise.all(
       meals.map(async (m) => {
         const foods = await getMealFoodDetails(m.id);
-        return {
+        const macros = sumMacros(foods);
+        const response = {
           ...m,
           foods,
-          ...sumMacros(foods),
+          ...macros,
         };
+        return response;
       })
     );
+    return responses;
   },
 
   async update(id: string, input: UpdateMealData) {
@@ -138,14 +147,17 @@ export const mealService = {
     if (!updated) return null;
 
     const foods = await getMealFoodDetails(updated.id);
-    return {
+    const macros = sumMacros(foods);
+    const response = {
       ...updated,
       foods,
-      ...sumMacros(foods),
+      ...macros,
     };
+    return response;
   },
 
   async delete(id: string) {
-    return await mealRepository.delete(id);
+    const deleted = await mealRepository.delete(id);
+    return deleted;
   },
 };

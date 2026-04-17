@@ -6,22 +6,27 @@ import {
 
 export const ingredientService = {
   async create(input: CreateIngredientData) {
-    return await ingredientRepository.create(input);
+    const ingredient = await ingredientRepository.create(input);
+    return ingredient;
   },
 
   async list() {
-    return await ingredientRepository.findAll();
+    const ingredients = await ingredientRepository.findAll();
+    return ingredients;
   },
 
   async getById(id: string) {
-    return await ingredientRepository.findById(id);
+    const ingredient = await ingredientRepository.findById(id);
+    return ingredient;
   },
 
   async update(id: string, input: UpdateIngredientData) {
-    return await ingredientRepository.update(id, input);
+    const ingredient = await ingredientRepository.update(id, input);
+    return ingredient;
   },
 
   async delete(id: string) {
-    return await ingredientRepository.delete(id);
+    const deleted = await ingredientRepository.delete(id);
+    return deleted;
   },
 };

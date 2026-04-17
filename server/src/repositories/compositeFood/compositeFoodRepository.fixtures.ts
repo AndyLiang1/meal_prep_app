@@ -17,11 +17,12 @@ export async function createTestCompositeFood(
     )
   );
 
-  return await compositeFoodRepository.createWithIngredients({
+  const compositeFood = await compositeFoodRepository.createWithIngredients({
     name: compositeFoodName,
     ingredients: ingredientRows.map((ingredientRow) => ({
       ingredientId: ingredientRow.id,
       quantity: 1,
     })),
   });
+  return compositeFood;
 }

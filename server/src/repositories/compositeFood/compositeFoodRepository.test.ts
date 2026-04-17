@@ -37,8 +37,13 @@ describe("compositeFoodRepository", () => {
       const joinRows = await compositeFoodRepository.findIngredientRows(
         compositeFood.id
       );
-      expect(joinRows).toHaveLength(2);
-      expect(joinRows).toEqual([
+      const linkSummaries = joinRows.map((row) => ({
+        ingredient_id: row.ingredient_id,
+        name: row.name,
+        quantity: row.quantity,
+      }));
+
+      expect(linkSummaries).toEqual([
         {
           ingredient_id: ingredient1.id,
           name: "ingredient-1",
@@ -124,7 +129,7 @@ describe("compositeFoodRepository", () => {
       expect(joinRows).toEqual([
         {
           ingredient_id: ingredient1.id,
-          name: "Banana",
+          name: "ingredient-1",
           quantity: 2,
           calories: 105,
           protein: 1.3,

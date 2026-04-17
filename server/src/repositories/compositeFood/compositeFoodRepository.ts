@@ -28,7 +28,7 @@ export const compositeFoodRepository = {
   async createWithIngredients(
     data: CreateCompositeFoodData
   ): Promise<CompositeFoodRow> {
-    return await getDb()
+    const compositeFood = await getDb()
       .transaction()
       .execute(async (transaction) => {
         const cf = await transaction
@@ -50,14 +50,16 @@ export const compositeFoodRepository = {
 
         return cf;
       });
+    return compositeFood;
   },
 
   async findAll(): Promise<CompositeFoodRow[]> {
-    return await getDb()
+    const rows = await getDb()
       .selectFrom("composite_food")
       .selectAll()
       .orderBy("created_at", "asc")
       .execute();
+    return rows;
   },
 
   async findById(id: string): Promise<CompositeFoodRow | null> {
@@ -72,7 +74,7 @@ export const compositeFoodRepository = {
   async findIngredientRows(
     compositeFoodId: string
   ): Promise<CompositeIngredientJoinRow[]> {
-    return await getDb()
+    const rows = await getDb()
       .selectFrom("composite_food_ingredient as cfi")
       .innerJoin("ingredient as i", "i.id", "cfi.ingredient_id")
       .where("cfi.composite_food_id", "=", compositeFoodId)
@@ -86,6 +88,7 @@ export const compositeFoodRepository = {
         "i.fats",
       ])
       .execute();
+    return rows;
   },
 
   async delete(id: string): Promise<boolean> {
@@ -93,6 +96,7 @@ export const compositeFoodRepository = {
       .deleteFrom("composite_food")
       .where("id", "=", id)
       .executeTakeFirst();
-    return Number(result.numDeletedRows) > 0;
+    const deletedCount = Number(result.numDeletedRows);
+    return deletedCount > 0;
   },
 };

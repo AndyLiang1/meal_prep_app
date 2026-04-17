@@ -32,10 +32,10 @@ export interface UpdateMealData {
 
 export const mealRepository = {
   async createWithFoods(data: CreateMealData): Promise<MealRow> {
-    return await getDb()
+    const meal = await getDb()
       .transaction()
       .execute(async (transaction) => {
-        const meal = await transaction
+        const insertedMeal = await transaction
           .insertInto("meal")
           .values({ name: data.name })
           .returningAll()
@@ -46,7 +46,7 @@ export const mealRepository = {
             .insertInto("meal_food")
             .values(
               data.foods.map((ref) => ({
-                meal_id: meal.id,
+                meal_id: insertedMeal.id,
                 ingredient_id: ref.ingredientId ?? null,
                 composite_food_id: ref.compositeFoodId ?? null,
               }))
@@ -54,16 +54,18 @@ export const mealRepository = {
             .execute();
         }
 
-        return meal;
+        return insertedMeal;
       });
+    return meal;
   },
 
   async findAll(): Promise<MealRow[]> {
-    return await getDb()
+    const rows = await getDb()
       .selectFrom("meal")
       .selectAll()
       .orderBy("created_at", "asc")
       .execute();
+    return rows;
   },
 
   async findById(id: string): Promise<MealRow | null> {
@@ -75,12 +77,24 @@ export const mealRepository = {
     return row ?? null;
   },
 
+  async findExistingIds(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await getDb()
+      .selectFrom("meal")
+      .select("id")
+      .where("id", "in", ids)
+      .execute();
+    const mealIds = rows.map((r) => r.id);
+    return mealIds;
+  },
+
   async findFoodsByMealId(mealId: string): Promise<MealFoodRow[]> {
-    return await getDb()
+    const rows = await getDb()
       .selectFrom("meal_food")
       .selectAll()
       .where("meal_id", "=", mealId)
       .execute();
+    return rows;
   },
 
   async update(id: string, data: UpdateMealData): Promise<MealRow | null> {
@@ -98,6 +112,7 @@ export const mealRepository = {
       .deleteFrom("meal")
       .where("id", "=", id)
       .executeTakeFirst();
-    return Number(result.numDeletedRows) > 0;
+    const deletedCount = Number(result.numDeletedRows);
+    return deletedCount > 0;
   },
 };

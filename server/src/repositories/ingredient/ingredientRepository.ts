@@ -29,19 +29,21 @@ export type UpdateIngredientData = Partial<CreateIngredientData>;
 
 export const ingredientRepository = {
   async create(data: CreateIngredientData): Promise<IngredientRow> {
-    return await getDb()
+    const row = await getDb()
       .insertInto("ingredient")
       .values(data)
       .returningAll()
       .executeTakeFirstOrThrow();
+    return row;
   },
 
   async findAll(): Promise<IngredientRow[]> {
-    return await getDb()
+    const rows = await getDb()
       .selectFrom("ingredient")
       .selectAll()
       .orderBy("created_at", "desc")
       .execute();
+    return rows;
   },
 
   async findById(id: string): Promise<IngredientRow | null> {
@@ -60,7 +62,8 @@ export const ingredientRepository = {
       .select("id")
       .where("id", "in", ids)
       .execute();
-    return rows.map((r) => r.id);
+    const ingredientIds = rows.map((r) => r.id);
+    return ingredientIds;
   },
 
   async update(
@@ -81,6 +84,7 @@ export const ingredientRepository = {
       .deleteFrom("ingredient")
       .where("id", "=", id)
       .executeTakeFirst();
-    return Number(result.numDeletedRows) > 0;
+    const deletedCount = Number(result.numDeletedRows);
+    return deletedCount > 0;
   },
 };

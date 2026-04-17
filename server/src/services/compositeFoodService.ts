@@ -15,7 +15,8 @@ interface CreateCompositeFoodInput {
 }
 
 function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+  const scaled = Math.round(value * 100);
+  return scaled / 100;
 }
 
 function computeMacros(rows: CompositeIngredientJoinRow[]) {
@@ -38,7 +39,7 @@ function computeMacros(rows: CompositeIngredientJoinRow[]) {
 }
 
 function formatIngredients(rows: CompositeIngredientJoinRow[]) {
-  return rows.map((r) => ({
+  const formatted = rows.map((r) => ({
     ingredientId: r.ingredient_id,
     name: r.name,
     quantity: r.quantity,
@@ -47,6 +48,7 @@ function formatIngredients(rows: CompositeIngredientJoinRow[]) {
     carbs: round2(r.carbs * r.quantity),
     fats: round2(r.fats * r.quantity),
   }));
+  return formatted;
 }
 
 export const compositeFoodService = {
@@ -65,25 +67,31 @@ export const compositeFoodService = {
     const rows = await compositeFoodRepository.findIngredientRows(
       compositeFood.id
     );
-    return {
+    const ingredients = formatIngredients(rows);
+    const response = {
       ...compositeFood,
-      ingredients: formatIngredients(rows),
+      ingredients,
     };
+    return response;
   },
 
   async list() {
     const foods = await compositeFoodRepository.findAll();
 
-    return await Promise.all(
+    const responses = await Promise.all(
       foods.map(async (cf) => {
         const rows = await compositeFoodRepository.findIngredientRows(cf.id);
-        return {
+        const macros = computeMacros(rows);
+        const ingredients = formatIngredients(rows);
+        const response = {
           ...cf,
-          ...computeMacros(rows),
-          ingredients: formatIngredients(rows),
+          ...macros,
+          ingredients,
         };
+        return response;
       })
     );
+    return responses;
   },
 
   async getById(id: string) {
@@ -91,14 +99,18 @@ export const compositeFoodService = {
     if (!cf) return null;
 
     const rows = await compositeFoodRepository.findIngredientRows(cf.id);
-    return {
+    const macros = computeMacros(rows);
+    const ingredients = formatIngredients(rows);
+    const response = {
       ...cf,
-      ...computeMacros(rows),
-      ingredients: formatIngredients(rows),
+      ...macros,
+      ingredients,
     };
+    return response;
   },
 
   async delete(id: string) {
-    return await compositeFoodRepository.delete(id);
+    const deleted = await compositeFoodRepository.delete(id);
+    return deleted;
   },
 };
