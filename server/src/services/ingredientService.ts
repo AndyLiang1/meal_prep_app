@@ -1,56 +1,27 @@
-import { getDb } from "../db/database.js";
-
-interface CreateIngredientInput {
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fats: number;
-}
-
-type UpdateIngredientInput = Partial<CreateIngredientInput>;
+import {
+  ingredientRepository,
+  type CreateIngredientData,
+  type UpdateIngredientData,
+} from "../repositories/ingredient/ingredientRepository.js";
 
 export const ingredientService = {
-  async create(input: CreateIngredientInput) {
-    return await getDb()
-      .insertInto("ingredient")
-      .values(input)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+  async create(input: CreateIngredientData) {
+    return await ingredientRepository.create(input);
   },
 
   async list() {
-    return await getDb()
-      .selectFrom("ingredient")
-      .selectAll()
-      .orderBy("created_at", "desc")
-      .execute();
+    return await ingredientRepository.findAll();
   },
 
   async getById(id: string) {
-    const ingredient = await getDb()
-      .selectFrom("ingredient")
-      .selectAll()
-      .where("id", "=", id)
-      .executeTakeFirst();
-    return ingredient ?? null;
+    return await ingredientRepository.findById(id);
   },
 
-  async update(id: string, input: UpdateIngredientInput) {
-    const updated = await getDb()
-      .updateTable("ingredient")
-      .set({ ...input, updated_at: new Date() })
-      .where("id", "=", id)
-      .returningAll()
-      .executeTakeFirst();
-    return updated ?? null;
+  async update(id: string, input: UpdateIngredientData) {
+    return await ingredientRepository.update(id, input);
   },
 
   async delete(id: string) {
-    const result = await getDb()
-      .deleteFrom("ingredient")
-      .where("id", "=", id)
-      .executeTakeFirst();
-    return Number(result.numDeletedRows) > 0;
+    return await ingredientRepository.delete(id);
   },
 };

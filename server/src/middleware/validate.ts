@@ -7,6 +7,15 @@ interface ValidationSchemas {
   query?: z.ZodType;
 }
 
+/**
+ * Wraps a schema so that values failing validation are dropped (become
+ * `undefined`) rather than producing an error. Intended for non-critical
+ * fields where invalid input should be silently ignored.
+ */
+export function removable<T extends z.ZodType>(schema: T) {
+  return schema.optional().catch(() => undefined);
+}
+
 export function validate(schemas: ValidationSchemas) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const errors: Record<string, z.ZodError> = {};

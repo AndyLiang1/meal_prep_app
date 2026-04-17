@@ -1,4 +1,8 @@
-import { getDb } from "../db/database.js";
+import {
+  compositeFoodRepository,
+  type CompositeIngredientJoinRow,
+} from "../repositories/compositeFood/compositeFoodRepository.js";
+import { ingredientRepository } from "../repositories/ingredient/ingredientRepository.js";
 
 interface IngredientRef {
   ingredientId: string;
@@ -10,40 +14,11 @@ interface CreateCompositeFoodInput {
   ingredients: IngredientRef[];
 }
 
-interface CompositeIngredientRow {
-  ingredient_id: string;
-  name: string;
-  quantity: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fats: number;
-}
-
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-async function getCompositeIngredientRows(
-  compositeFoodId: string
-): Promise<CompositeIngredientRow[]> {
-  return await getDb()
-    .selectFrom("composite_food_ingredient as cfi")
-    .innerJoin("ingredient as i", "i.id", "cfi.ingredient_id")
-    .where("cfi.composite_food_id", "=", compositeFoodId)
-    .select([
-      "cfi.ingredient_id",
-      "i.name",
-      "cfi.quantity",
-      "i.calories",
-      "i.protein",
-      "i.carbs",
-      "i.fats",
-    ])
-    .execute();
-}
-
-function computeMacros(rows: CompositeIngredientRow[]) {
+function computeMacros(rows: CompositeIngredientJoinRow[]) {
   let calories = 0;
   let protein = 0;
   let carbs = 0;
@@ -62,7 +37,7 @@ function computeMacros(rows: CompositeIngredientRow[]) {
   };
 }
 
-function formatIngredients(rows: CompositeIngredientRow[]) {
+function formatIngredients(rows: CompositeIngredientJoinRow[]) {
   return rows.map((r) => ({
     ingredientId: r.ingredient_id,
     name: r.name,
@@ -76,42 +51,20 @@ function formatIngredients(rows: CompositeIngredientRow[]) {
 
 export const compositeFoodService = {
   async create(input: CreateCompositeFoodInput) {
-    const db = getDb();
-
-    const ids = input.ingredients.map((r) => r.ingredientId);
-    const uniqueIds = [...new Set(ids)];
-    const existing = await db
-      .selectFrom("ingredient")
-      .select("id")
-      .where("id", "in", uniqueIds)
-      .execute();
-
-    if (existing.length !== uniqueIds.length) {
+    const uniqueIds = [
+      ...new Set(input.ingredients.map((r) => r.ingredientId)),
+    ];
+    const existingIds = await ingredientRepository.findExistingIds(uniqueIds);
+    if (existingIds.length !== uniqueIds.length) {
       return { error: "One or more ingredients not found" };
     }
 
-    const compositeFood = await db.transaction().execute(async (trx) => {
-      const cf = await trx
-        .insertInto("composite_food")
-        .values({ name: input.name })
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      await trx
-        .insertInto("composite_food_ingredient")
-        .values(
-          input.ingredients.map((r) => ({
-            composite_food_id: cf.id,
-            ingredient_id: r.ingredientId,
-            quantity: r.quantity,
-          }))
-        )
-        .execute();
-
-      return cf;
-    });
-
-    const rows = await getCompositeIngredientRows(compositeFood.id);
+    const compositeFood = await compositeFoodRepository.createWithIngredients(
+      input
+    );
+    const rows = await compositeFoodRepository.findIngredientRows(
+      compositeFood.id
+    );
     return {
       ...compositeFood,
       ingredients: formatIngredients(rows),
@@ -119,15 +72,11 @@ export const compositeFoodService = {
   },
 
   async list() {
-    const foods = await getDb()
-      .selectFrom("composite_food")
-      .selectAll()
-      .orderBy("created_at", "asc")
-      .execute();
+    const foods = await compositeFoodRepository.findAll();
 
     return await Promise.all(
       foods.map(async (cf) => {
-        const rows = await getCompositeIngredientRows(cf.id);
+        const rows = await compositeFoodRepository.findIngredientRows(cf.id);
         return {
           ...cf,
           ...computeMacros(rows),
@@ -138,14 +87,10 @@ export const compositeFoodService = {
   },
 
   async getById(id: string) {
-    const cf = await getDb()
-      .selectFrom("composite_food")
-      .selectAll()
-      .where("id", "=", id)
-      .executeTakeFirst();
+    const cf = await compositeFoodRepository.findById(id);
     if (!cf) return null;
 
-    const rows = await getCompositeIngredientRows(cf.id);
+    const rows = await compositeFoodRepository.findIngredientRows(cf.id);
     return {
       ...cf,
       ...computeMacros(rows),
@@ -154,10 +99,6 @@ export const compositeFoodService = {
   },
 
   async delete(id: string) {
-    const result = await getDb()
-      .deleteFrom("composite_food")
-      .where("id", "=", id)
-      .executeTakeFirst();
-    return Number(result.numDeletedRows) > 0;
+    return await compositeFoodRepository.delete(id);
   },
 };
