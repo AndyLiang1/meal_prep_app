@@ -2,7 +2,6 @@ import { sql } from "kysely";
 import { afterAll, afterEach } from "vitest";
 import { getDb } from "../src/db/database.js";
 
-process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = "silent";
 
 afterEach(async () => {

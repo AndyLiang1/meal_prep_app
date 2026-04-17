@@ -1,14 +1,10 @@
-import { getDb } from "../db/database.js";
-
-interface FoodRef {
-  ingredientId?: string;
-  compositeFoodId?: string;
-}
-
-interface CreateMealInput {
-  name: string;
-  foods: FoodRef[];
-}
+import { compositeFoodRepository } from "../repositories/compositeFood/compositeFoodRepository.js";
+import { ingredientRepository } from "../repositories/ingredient/ingredientRepository.js";
+import {
+  mealRepository,
+  type CreateMealData,
+  type UpdateMealData,
+} from "../repositories/meal/mealRepository.js";
 
 type IngredientFoodDetail = {
   id: string;
@@ -35,16 +31,12 @@ type CompositeFoodDetail = {
 type MealFoodDetail = IngredientFoodDetail | CompositeFoodDetail;
 
 function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+  const scaled = Math.round(value * 100);
+  return scaled / 100;
 }
 
 async function getCompositeMacros(compositeFoodId: string) {
-  const rows = await getDb()
-    .selectFrom("composite_food_ingredient as cfi")
-    .innerJoin("ingredient as i", "i.id", "cfi.ingredient_id")
-    .where("cfi.composite_food_id", "=", compositeFoodId)
-    .select(["cfi.quantity", "i.calories", "i.protein", "i.carbs", "i.fats"])
-    .execute();
+  const rows = await compositeFoodRepository.findIngredientRows(compositeFoodId);
 
   let calories = 0;
   let protein = 0;
@@ -60,22 +52,14 @@ async function getCompositeMacros(compositeFoodId: string) {
 }
 
 async function getMealFoodDetails(mealId: string): Promise<MealFoodDetail[]> {
-  const foods = await getDb()
-    .selectFrom("meal_food")
-    .selectAll()
-    .where("meal_id", "=", mealId)
-    .execute();
+  const foods = await mealRepository.findFoodsByMealId(mealId);
 
-  return await Promise.all(
+  const details = await Promise.all(
     foods.map(async (mf): Promise<MealFoodDetail> => {
       if (mf.ingredient_id) {
-        const ing = await getDb()
-          .selectFrom("ingredient")
-          .selectAll()
-          .where("id", "=", mf.ingredient_id)
-          .executeTakeFirst();
+        const ing = await ingredientRepository.findById(mf.ingredient_id);
 
-        return {
+        const ingredientDetail: IngredientFoodDetail = {
           id: mf.id,
           type: "ingredient",
           ingredientId: mf.ingredient_id,
@@ -85,17 +69,14 @@ async function getMealFoodDetails(mealId: string): Promise<MealFoodDetail[]> {
           carbs: ing?.carbs ?? 0,
           fats: ing?.fats ?? 0,
         };
+        return ingredientDetail;
       }
 
       const compositeFoodId = mf.composite_food_id!;
-      const cf = await getDb()
-        .selectFrom("composite_food")
-        .selectAll()
-        .where("id", "=", compositeFoodId)
-        .executeTakeFirst();
+      const cf = await compositeFoodRepository.findById(compositeFoodId);
       const macros = await getCompositeMacros(compositeFoodId);
 
-      return {
+      const compositeDetail: CompositeFoodDetail = {
         id: mf.id,
         type: "composite",
         compositeFoodId,
@@ -105,8 +86,10 @@ async function getMealFoodDetails(mealId: string): Promise<MealFoodDetail[]> {
         carbs: round2(macros.carbs),
         fats: round2(macros.fats),
       };
+      return compositeDetail;
     })
   );
+  return details;
 }
 
 function sumMacros(foods: MealFoodDetail[]) {
@@ -129,82 +112,52 @@ function sumMacros(foods: MealFoodDetail[]) {
 }
 
 export const mealService = {
-  async create(input: CreateMealInput) {
-    const db = getDb();
-
-    const meal = await db.transaction().execute(async (trx) => {
-      const created = await trx
-        .insertInto("meal")
-        .values({ name: input.name })
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      if (input.foods.length > 0) {
-        await trx
-          .insertInto("meal_food")
-          .values(
-            input.foods.map((ref) => ({
-              meal_id: created.id,
-              ingredient_id: ref.ingredientId ?? null,
-              composite_food_id: ref.compositeFoodId ?? null,
-            }))
-          )
-          .execute();
-      }
-
-      return created;
-    });
-
+  async create(input: CreateMealData) {
+    const meal = await mealRepository.createWithFoods(input);
     const foods = await getMealFoodDetails(meal.id);
-    return {
+    const macros = sumMacros(foods);
+    const response = {
       ...meal,
       foods,
-      ...sumMacros(foods),
+      ...macros,
     };
+    return response;
   },
 
   async list() {
-    const meals = await getDb()
-      .selectFrom("meal")
-      .selectAll()
-      .orderBy("created_at", "asc")
-      .execute();
+    const meals = await mealRepository.findAll();
 
-    return await Promise.all(
+    const responses = await Promise.all(
       meals.map(async (m) => {
         const foods = await getMealFoodDetails(m.id);
-        return {
+        const macros = sumMacros(foods);
+        const response = {
           ...m,
           foods,
-          ...sumMacros(foods),
+          ...macros,
         };
+        return response;
       })
     );
+    return responses;
   },
 
-  async update(id: string, input: { name?: string }) {
-    const updated = await getDb()
-      .updateTable("meal")
-      .set({ ...input, updated_at: new Date() })
-      .where("id", "=", id)
-      .returningAll()
-      .executeTakeFirst();
-
+  async update(id: string, input: UpdateMealData) {
+    const updated = await mealRepository.update(id, input);
     if (!updated) return null;
 
     const foods = await getMealFoodDetails(updated.id);
-    return {
+    const macros = sumMacros(foods);
+    const response = {
       ...updated,
       foods,
-      ...sumMacros(foods),
+      ...macros,
     };
+    return response;
   },
 
   async delete(id: string) {
-    const result = await getDb()
-      .deleteFrom("meal")
-      .where("id", "=", id)
-      .executeTakeFirst();
-    return Number(result.numDeletedRows) > 0;
+    const deleted = await mealRepository.delete(id);
+    return deleted;
   },
 };

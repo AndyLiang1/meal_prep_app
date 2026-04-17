@@ -12,10 +12,10 @@ export function createApp() {
   app.use(express.json());
   app.use(requestLogger);
 
-  // app.use("/api/ingredients", ingredientRoutes);
-  // app.use("/api/composite-foods", compositeFoodRoutes);
-  // app.use("/api/meals", mealRoutes);
-  // app.use("/api/meal-groups", mealGroupRoutes);
+  app.use("/api/ingredients", ingredientRoutes);
+  app.use("/api/composite-foods", compositeFoodRoutes);
+  app.use("/api/meals", mealRoutes);
+  app.use("/api/meal-groups", mealGroupRoutes);
 
   app.use(errorHandler);
 
