@@ -76,8 +76,13 @@ git add -A
 
 ### Step 4 — Commit
 
-Craft a single-line descriptive title (≤ 72 chars, imperative mood). Prefer
-Conventional Commits style when the branch or diff makes the type obvious.
+Craft a single-line descriptive title (≤ 72 chars, imperative mood).
+
+**Conventional Commits prefix is required** — the `.husky/commit-msg` hook runs
+`commitlint` and will reject any message that doesn't start with one of:
+`feat`, `fix`, `bug`, `chore`, `docs`, `refactor`, `test`, `ci`, `build`,
+`perf`, `style`, `revert` — optionally followed by `(scope)`, then `:`, then
+the summary. Example: `feat(ingredients): add search endpoint`.
 
 **Always pass the message via HEREDOC** so formatting is preserved:
 
@@ -90,8 +95,9 @@ EOF
 
 If Husky's `pre-commit` hook modifies files (prettier reformat), the commit will
 succeed with the reformatted content already included — no extra step needed.
-If the commit **fails** due to the hook, fix the issue and create a **new**
-commit. Never `--amend` unless the user explicitly asks.
+If the commit **fails** due to either hook (`pre-commit` prettier or
+`commit-msg` commitlint), fix the issue and create a **new** commit. Never
+`--amend` unless the user explicitly asks.
 
 ### Step 5 — Push
 
