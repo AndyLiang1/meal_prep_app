@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+coverage
+.pnpm-store
+*.min.js
+*.min.css
+server/node_modules
+server/dist
+server/coverage

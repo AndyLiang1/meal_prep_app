@@ -1,0 +1,22 @@
+{
+  "name": "meal-prep-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Repo root — holds dev tooling (husky, lint-staged, prettier).",
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css,scss,html}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.8.3"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
