@@ -7,7 +7,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable("ingredient")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`)
+      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
     )
     .addColumn("name", "varchar(255)", (col) => col.notNull())
     .addColumn("calories", sql`decimal(10,2)`, (col) => col.notNull())
@@ -15,41 +15,39 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("carbs", sql`decimal(10,2)`, (col) => col.notNull())
     .addColumn("fats", sql`decimal(10,2)`, (col) => col.notNull())
     .addColumn("created_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .addColumn("updated_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .execute();
 
   await db.schema
     .createTable("composite_food")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`)
+      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
     )
     .addColumn("name", "varchar(255)", (col) => col.notNull())
     .addColumn("created_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .addColumn("updated_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .execute();
 
   await db.schema
     .createTable("composite_food_ingredient")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`)
+      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
     )
     .addColumn("composite_food_id", "uuid", (col) =>
-      col.notNull().references("composite_food.id").onDelete("cascade")
+      col.notNull().references("composite_food.id").onDelete("cascade"),
     )
     .addColumn("ingredient_id", "uuid", (col) =>
-      col.notNull().references("ingredient.id").onDelete("cascade")
+      col.notNull().references("ingredient.id").onDelete("cascade"),
     )
-    .addColumn("quantity", sql`decimal(10,2)`, (col) =>
-      col.notNull().defaultTo(1)
-    )
+    .addColumn("quantity", sql`decimal(10,2)`, (col) => col.notNull().defaultTo(1))
     .execute();
 
   await db.schema
@@ -67,30 +65,30 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable("meal")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`)
+      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
     )
     .addColumn("name", "varchar(255)", (col) => col.notNull())
     .addColumn("created_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .addColumn("updated_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .execute();
 
   await db.schema
     .createTable("meal_food")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`)
+      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
     )
     .addColumn("meal_id", "uuid", (col) =>
-      col.notNull().references("meal.id").onDelete("cascade")
+      col.notNull().references("meal.id").onDelete("cascade"),
     )
     .addColumn("ingredient_id", "uuid", (col) =>
-      col.references("ingredient.id").onDelete("cascade")
+      col.references("ingredient.id").onDelete("cascade"),
     )
     .addColumn("composite_food_id", "uuid", (col) =>
-      col.references("composite_food.id").onDelete("cascade")
+      col.references("composite_food.id").onDelete("cascade"),
     )
     .execute();
 
@@ -111,31 +109,29 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable("meal_group")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`)
+      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
     )
     .addColumn("name", "varchar(255)", (col) => col.notNull())
     .addColumn("tag", "varchar(100)", (col) => col.notNull())
-    .addColumn("display_as_default", "boolean", (col) =>
-      col.notNull().defaultTo(false)
-    )
+    .addColumn("display_as_default", "boolean", (col) => col.notNull().defaultTo(false))
     .addColumn("created_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .addColumn("updated_at", "timestamptz", (col) =>
-      col.notNull().defaultTo(sql`now()`)
+      col.notNull().defaultTo(sql`now()`),
     )
     .execute();
 
   await db.schema
     .createTable("meal_group_meal")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`)
+      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
     )
     .addColumn("meal_group_id", "uuid", (col) =>
-      col.notNull().references("meal_group.id").onDelete("cascade")
+      col.notNull().references("meal_group.id").onDelete("cascade"),
     )
     .addColumn("meal_id", "uuid", (col) =>
-      col.notNull().references("meal.id").onDelete("cascade")
+      col.notNull().references("meal.id").onDelete("cascade"),
     )
     .addColumn("sort_order", "integer", (col) => col.notNull().defaultTo(0))
     .execute();

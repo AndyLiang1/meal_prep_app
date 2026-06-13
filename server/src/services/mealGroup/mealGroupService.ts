@@ -3,8 +3,8 @@ import {
   type CreateMealGroupData,
   type MealGroupRow,
   type UpdateMealGroupData,
-} from "../repositories/mealGroup/mealGroupRepository.js";
-import { mealRepository } from "../repositories/meal/mealRepository.js";
+} from "../../repositories/mealGroup/mealGroupRepository.js";
+import { mealRepository } from "../../repositories/meal/mealRepository.js";
 
 async function buildMealGroupResponse(group: MealGroupRow) {
   const joinRows = await mealGroupRepository.findMealsByMealGroupId(group.id);
@@ -19,7 +19,7 @@ async function buildMealGroupResponse(group: MealGroupRow) {
         sortOrder: row.sort_order,
       };
       return mealDetail;
-    })
+    }),
   );
 
   const response = {
@@ -64,8 +64,7 @@ export const mealGroupService = {
     if (!existing) return null;
 
     const finalTag = input.tag ?? existing.tag;
-    const finalDefault =
-      input.displayAsDefault ?? existing.display_as_default;
+    const finalDefault = input.displayAsDefault ?? existing.display_as_default;
 
     if (finalDefault) {
       await mealGroupRepository.unsetDefaultsForTag(finalTag, id);

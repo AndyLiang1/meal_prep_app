@@ -12,9 +12,8 @@ const mealFoodSchema = z
       return (hasIngredient || hasComposite) && !(hasIngredient && hasComposite);
     },
     {
-      message:
-        "Each food must have exactly one of ingredientId or compositeFoodId",
-    }
+      message: "Each food must have exactly one of ingredientId or compositeFoodId",
+    },
   );
 
 export const createMealSchema = z.object({

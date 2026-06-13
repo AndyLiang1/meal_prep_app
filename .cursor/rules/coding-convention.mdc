@@ -1,0 +1,103 @@
+---
+description: Coding conventions for variable naming and debuggable returns
+alwaysApply: true
+---
+
+# Coding Convention
+
+## Descriptive Variable Names
+
+Never use single-letter, two-letter, or generic variable names. Every variable name must clearly describe what the value represents in context.
+
+### Forbidden patterns
+
+- **Single/two-letter names:** `tx`, `db`, `cb`, `fn`, `el`, `ev`, `i`, `j`, `x`, `y`
+- **Generic names:** `result`, `data`, `value`, `item`, `row`, `updated`, `response`, `output`, `temp`, `info`, `detail`, `obj`
+
+### What to use instead
+
+Variable names should describe **what the value is** in the specific context. A reader should understand what the variable holds without looking at the right-hand side of the assignment.
+
+### Examples
+
+Bad:
+```typescript
+const result = await compositeFoodService.update(id, payload);
+const tx = await db.transaction();
+const row = await ingredientRepository.findById(id);
+const data = await fetch("/api/meals");
+const items = orders.map((item) => item.total);
+```
+
+Good:
+```typescript
+const updatedCompositeFood = await compositeFoodService.update(compositeFoodId, payload);
+const transaction = await database.transaction();
+const ingredientRecord = await ingredientRepository.findById(ingredientId);
+const mealResponse = await fetch("/api/meals");
+const orderTotals = orders.map((order) => order.total);
+```
+
+### Loop variables and callbacks
+
+Even in short callbacks, use descriptive names:
+
+Bad:
+```typescript
+ingredients.map((i) => i.name);
+meals.forEach((m) => m.prepare());
+```
+
+Good:
+```typescript
+ingredients.map((ingredient) => ingredient.name);
+meals.forEach((meal) => meal.prepare());
+```
+
+## Debuggable Returns
+
+Never `return` a function/method call directly. Always capture the result into a descriptively named variable on its own line, then `return` that variable. This lets a debugger stop on the `return` line with the value already inspectable.
+
+Applies to all `return` statements: async (`return await fn(...)`), sync (`return fn(...)`), method chains (`return foo.bar().baz()`), built-in coercions (`return Number(x) > 0`), and `.map()`/`.filter()` callbacks.
+
+### Examples
+
+Bad:
+```typescript
+async findById(id: string): Promise<IngredientRow | null> {
+  return await getDb().selectFrom("ingredients").selectAll().where("id", "=", id).executeTakeFirst();
+}
+
+async delete(id: string): Promise<boolean> {
+  const result = await getDb().deleteFrom("ingredients").where("id", "=", id).executeTakeFirst();
+  return Number(result.numDeletedRows) > 0;
+}
+
+items.map((item) => {
+  return buildDetail(item);
+});
+```
+
+Good:
+```typescript
+async findById(id: string): Promise<IngredientRow | null> {
+  const ingredientRecord = await getDb().selectFrom("ingredients").selectAll().where("id", "=", id).executeTakeFirst();
+  return ingredientRecord ?? null;
+}
+
+async delete(id: string): Promise<boolean> {
+  const deleteResult = await getDb().deleteFrom("ingredients").where("id", "=", id).executeTakeFirst();
+  const deletedCount = Number(deleteResult.numDeletedRows);
+  return deletedCount > 0;
+}
+
+ingredients.map((ingredient) => {
+  const ingredientDetail = buildDetail(ingredient);
+  return ingredientDetail;
+});
+```
+
+### Allowed Exceptions
+
+- Early returns of literals / simple expressions: `return null;`, `return [];`, `return ingredientRecord ?? null;`, `return deletedCount > 0;` — these don't invoke a function, so a breakpoint on the line already shows everything.
+- Arrow-function shorthand with no body (`(x) => x * 2`) — there's no `return` statement to break on.

@@ -49,7 +49,7 @@ export function validate(schemas: ValidationSchemas) {
           source,
           path: issue.path.join("."),
           message: issue.message,
-        }))
+        })),
       );
       res.status(400).json({ error: "Validation failed", details });
       return;

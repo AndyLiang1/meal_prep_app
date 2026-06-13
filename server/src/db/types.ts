@@ -5,9 +5,12 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U>
+    ? ColumnType<S, I | undefined, U>
+    : ColumnType<T, T | undefined, T>;
+
+export type IngredientUnit = "GRAM" | "MILLILITER" | "PIECE";
 
 export type Numeric = ColumnType<number, number | string, number | string>;
 
@@ -21,10 +24,10 @@ export interface CompositeFood {
 }
 
 export interface CompositeFoodIngredient {
+  amount: Numeric;
   composite_food_id: string;
   id: Generated<string>;
   ingredient_id: string;
-  quantity: Generated<Numeric>;
 }
 
 export interface Ingredient {
@@ -35,6 +38,8 @@ export interface Ingredient {
   id: Generated<string>;
   name: string;
   protein: Numeric;
+  serving_size: Numeric;
+  unit: IngredientUnit;
   updated_at: Generated<Timestamp>;
 }
 

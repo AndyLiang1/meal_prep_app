@@ -9,13 +9,13 @@ describe("Ingredients API", () => {
     protein: 1.3,
     carbs: 27,
     fats: 0.4,
+    servingSize: 100,
+    unit: "GRAM",
   };
 
   describe("POST /api/ingredients", () => {
     it("should create an ingredient with valid data", async () => {
-      const res = await request(app)
-        .post("/api/ingredients")
-        .send(validIngredient);
+      const res = await request(app).post("/api/ingredients").send(validIngredient);
 
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({
@@ -24,15 +24,31 @@ describe("Ingredients API", () => {
         protein: 1.3,
         carbs: 27,
         fats: 0.4,
+        serving_size: 100,
+        unit: "GRAM",
       });
       expect(res.body.id).toBeDefined();
       expect(res.body.created_at).toBeDefined();
     });
 
-    it("should reject missing required fields", async () => {
+    it("should reject non-positive servingSize", async () => {
       const res = await request(app)
         .post("/api/ingredients")
-        .send({ name: "Banana" });
+        .send({ ...validIngredient, servingSize: 0 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should reject an unknown unit", async () => {
+      const res = await request(app)
+        .post("/api/ingredients")
+        .send({ ...validIngredient, unit: "KILOGRAM" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should reject missing required fields", async () => {
+      const res = await request(app).post("/api/ingredients").send({ name: "Banana" });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("Validation failed");
@@ -70,9 +86,7 @@ describe("Ingredients API", () => {
 
   describe("PATCH /api/ingredients/:id", () => {
     it("should update an ingredient's macros", async () => {
-      const created = await request(app)
-        .post("/api/ingredients")
-        .send(validIngredient);
+      const created = await request(app).post("/api/ingredients").send(validIngredient);
 
       const res = await request(app)
         .patch(`/api/ingredients/${created.body.id}`)
@@ -85,9 +99,7 @@ describe("Ingredients API", () => {
     });
 
     it("should update an ingredient's name", async () => {
-      const created = await request(app)
-        .post("/api/ingredients")
-        .send(validIngredient);
+      const created = await request(app).post("/api/ingredients").send(validIngredient);
 
       const res = await request(app)
         .patch(`/api/ingredients/${created.body.id}`)
@@ -108,13 +120,9 @@ describe("Ingredients API", () => {
 
   describe("DELETE /api/ingredients/:id", () => {
     it("should delete an ingredient", async () => {
-      const created = await request(app)
-        .post("/api/ingredients")
-        .send(validIngredient);
+      const created = await request(app).post("/api/ingredients").send(validIngredient);
 
-      const res = await request(app).delete(
-        `/api/ingredients/${created.body.id}`
-      );
+      const res = await request(app).delete(`/api/ingredients/${created.body.id}`);
       expect(res.status).toBe(204);
 
       const list = await request(app).get("/api/ingredients");
@@ -123,7 +131,7 @@ describe("Ingredients API", () => {
 
     it("should return 404 for non-existent ingredient", async () => {
       const res = await request(app).delete(
-        "/api/ingredients/00000000-0000-0000-0000-000000000000"
+        "/api/ingredients/00000000-0000-0000-0000-000000000000",
       );
       expect(res.status).toBe(404);
     });

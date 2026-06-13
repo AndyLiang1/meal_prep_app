@@ -11,6 +11,8 @@ async function createIngredient(overrides = {}) {
       protein: 1.3,
       carbs: 27,
       fats: 0.4,
+      servingSize: 100,
+      unit: "GRAM",
       ...overrides,
     });
   return res.body;
@@ -18,7 +20,7 @@ async function createIngredient(overrides = {}) {
 
 async function createCompositeFood(
   name: string,
-  ingredients: { ingredientId: string; quantity: number }[]
+  ingredients: { ingredientId: string; amount: number }[],
 ) {
   const res = await request(app)
     .post("/api/composite-foods")
@@ -52,7 +54,7 @@ describe("Meals API", () => {
     it("should create a meal with composite food references", async () => {
       const banana = await createIngredient();
       const shake = await createCompositeFood("Protein Shake", [
-        { ingredientId: banana.id, quantity: 2 },
+        { ingredientId: banana.id, amount: 200 },
       ]);
 
       const res = await request(app)
@@ -76,17 +78,14 @@ describe("Meals API", () => {
       });
       const banana = await createIngredient();
       const shake = await createCompositeFood("Protein Shake", [
-        { ingredientId: banana.id, quantity: 1 },
+        { ingredientId: banana.id, amount: 100 },
       ]);
 
       const res = await request(app)
         .post("/api/meals")
         .send({
           name: "Breakfast",
-          foods: [
-            { ingredientId: waffle.id },
-            { compositeFoodId: shake.id },
-          ],
+          foods: [{ ingredientId: waffle.id }, { compositeFoodId: shake.id }],
         });
 
       expect(res.status).toBe(201);
@@ -221,7 +220,7 @@ describe("Meals API", () => {
 
     it("should return 404 for non-existent meal", async () => {
       const res = await request(app).delete(
-        "/api/meals/00000000-0000-0000-0000-000000000000"
+        "/api/meals/00000000-0000-0000-0000-000000000000",
       );
       expect(res.status).toBe(404);
     });

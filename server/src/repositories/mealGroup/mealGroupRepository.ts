@@ -59,7 +59,7 @@ export const mealGroupRepository = {
                 meal_group_id: insertedMealGroup.id,
                 meal_id: ref.mealId,
                 sort_order: ref.sortOrder ?? index,
-              }))
+              })),
             )
             .execute();
         }
@@ -87,9 +87,7 @@ export const mealGroupRepository = {
     return row ?? null;
   },
 
-  async findMealsByMealGroupId(
-    mealGroupId: string
-  ): Promise<MealGroupMealRow[]> {
+  async findMealsByMealGroupId(mealGroupId: string): Promise<MealGroupMealRow[]> {
     const rows = await getDb()
       .selectFrom("meal_group_meal")
       .selectAll()
@@ -111,10 +109,7 @@ export const mealGroupRepository = {
     await query.execute();
   },
 
-  async update(
-    id: string,
-    data: UpdateMealGroupData
-  ): Promise<MealGroupRow | null> {
+  async update(id: string, data: UpdateMealGroupData): Promise<MealGroupRow | null> {
     const patch = {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.tag !== undefined && { tag: data.tag }),

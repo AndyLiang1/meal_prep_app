@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mealGroupRepository } from "./mealGroupRepository.js";
-import {
-  MISSING_ID,
-  UUID_REGEX,
-} from "../ingredient/ingredientRepository.fixtures.js";
+import { MISSING_ID, UUID_REGEX } from "../../constants.js";
 import { createTestMeal } from "../meal/mealRepository.fixtures.js";
 import { createTestMealGroup } from "./mealGroupRepository.fixtures.js";
 
@@ -24,9 +21,9 @@ describe("mealGroupRepository", () => {
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       });
-      expect(
-        await mealGroupRepository.findMealsByMealGroupId(mealGroup.id)
-      ).toEqual([]);
+      expect(await mealGroupRepository.findMealsByMealGroupId(mealGroup.id)).toEqual(
+        [],
+      );
     });
 
     it("creates a meal group with multiple meals and explicit sort_order", async () => {
@@ -43,7 +40,7 @@ describe("mealGroupRepository", () => {
       });
 
       const mealGroupMeals = await mealGroupRepository.findMealsByMealGroupId(
-        mealGroup.id
+        mealGroup.id,
       );
       expect(mealGroupMeals).toHaveLength(2);
       expect(mealGroupMeals.map((row) => row.meal_id)).toEqual([
@@ -51,9 +48,9 @@ describe("mealGroupRepository", () => {
         mealSecond.id,
       ]);
       expect(mealGroupMeals.map((row) => row.sort_order)).toEqual([0, 1]);
-      expect(
-        mealGroupMeals.every((row) => row.meal_group_id === mealGroup.id)
-      ).toBe(true);
+      expect(mealGroupMeals.every((row) => row.meal_group_id === mealGroup.id)).toBe(
+        true,
+      );
     });
 
     it("persists display_as_default=true when requested", async () => {
@@ -76,9 +73,7 @@ describe("mealGroupRepository", () => {
         meals: [{ mealId: mealA.id }, { mealId: mealB.id }],
       });
 
-      const rows = await mealGroupRepository.findMealsByMealGroupId(
-        mealGroup.id
-      );
+      const rows = await mealGroupRepository.findMealsByMealGroupId(mealGroup.id);
       expect(rows.map((row) => row.sort_order)).toEqual([0, 1]);
     });
 
@@ -88,7 +83,7 @@ describe("mealGroupRepository", () => {
           name: "meal-group-bad-fk",
           tag: "breakfast",
           meals: [{ mealId: MISSING_ID }],
-        })
+        }),
       ).rejects.toThrow();
 
       expect(await mealGroupRepository.findAll()).toEqual([]);
@@ -137,20 +132,12 @@ describe("mealGroupRepository", () => {
         ],
       });
 
-      const rows = await mealGroupRepository.findMealsByMealGroupId(
-        mealGroup.id
-      );
-      expect(rows.map((row) => row.meal_id)).toEqual([
-        meal2.id,
-        meal3.id,
-        meal1.id,
-      ]);
+      const rows = await mealGroupRepository.findMealsByMealGroupId(mealGroup.id);
+      expect(rows.map((row) => row.meal_id)).toEqual([meal2.id, meal3.id, meal1.id]);
     });
 
     it("returns an empty array for an unknown meal group id", async () => {
-      expect(
-        await mealGroupRepository.findMealsByMealGroupId(MISSING_ID)
-      ).toEqual([]);
+      expect(await mealGroupRepository.findMealsByMealGroupId(MISSING_ID)).toEqual([]);
     });
   });
 
@@ -179,14 +166,14 @@ describe("mealGroupRepository", () => {
       await mealGroupRepository.unsetDefaultsForTag("breakfast");
 
       expect(
-        (await mealGroupRepository.findById(breakfastA.id))!.display_as_default
+        (await mealGroupRepository.findById(breakfastA.id))!.display_as_default,
       ).toBe(false);
       expect(
-        (await mealGroupRepository.findById(breakfastB.id))!.display_as_default
+        (await mealGroupRepository.findById(breakfastB.id))!.display_as_default,
       ).toBe(false);
-      expect(
-        (await mealGroupRepository.findById(lunch.id))!.display_as_default
-      ).toBe(true);
+      expect((await mealGroupRepository.findById(lunch.id))!.display_as_default).toBe(
+        true,
+      );
     });
 
     it("skips the row identified by exceptId", async () => {
@@ -206,12 +193,12 @@ describe("mealGroupRepository", () => {
 
       await mealGroupRepository.unsetDefaultsForTag("breakfast", keep.id);
 
-      expect(
-        (await mealGroupRepository.findById(keep.id))!.display_as_default
-      ).toBe(true);
-      expect(
-        (await mealGroupRepository.findById(other.id))!.display_as_default
-      ).toBe(false);
+      expect((await mealGroupRepository.findById(keep.id))!.display_as_default).toBe(
+        true,
+      );
+      expect((await mealGroupRepository.findById(other.id))!.display_as_default).toBe(
+        false,
+      );
     });
   });
 
@@ -233,7 +220,7 @@ describe("mealGroupRepository", () => {
         updated_at: expect.any(Date),
       });
       expect(updated!.updated_at.getTime()).toBeGreaterThanOrEqual(
-        beforeUpdate.updated_at.getTime()
+        beforeUpdate.updated_at.getTime(),
       );
     });
 
@@ -249,15 +236,15 @@ describe("mealGroupRepository", () => {
     it("returns true and cascades meal_group_meal when the row exists", async () => {
       const mealGroup = await createTestMealGroup("meal-group-delete", 2);
       expect(
-        await mealGroupRepository.findMealsByMealGroupId(mealGroup.id)
+        await mealGroupRepository.findMealsByMealGroupId(mealGroup.id),
       ).toHaveLength(2);
 
       const deleted = await mealGroupRepository.delete(mealGroup.id);
       expect(deleted).toBe(true);
       expect(await mealGroupRepository.findById(mealGroup.id)).toBeNull();
-      expect(
-        await mealGroupRepository.findMealsByMealGroupId(mealGroup.id)
-      ).toEqual([]);
+      expect(await mealGroupRepository.findMealsByMealGroupId(mealGroup.id)).toEqual(
+        [],
+      );
     });
 
     it("returns false when the row does not exist", async () => {

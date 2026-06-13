@@ -49,7 +49,7 @@ export const mealRepository = {
                 meal_id: insertedMeal.id,
                 ingredient_id: ref.ingredientId ?? null,
                 composite_food_id: ref.compositeFoodId ?? null,
-              }))
+              })),
             )
             .execute();
         }

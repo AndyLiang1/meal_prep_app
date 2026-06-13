@@ -1,22 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { ingredientRepository } from "./ingredientRepository.js";
 import {
-  MISSING_ID,
-  UUID_REGEX,
-  buildIngredientInput,
-  sampleIngredientInput,
+  generateIngredientInput,
+  mockCreateIngredientData,
 } from "./ingredientRepository.fixtures.js";
+import { UUID_REGEX, MISSING_ID } from "../../constants.js";
 
 describe("ingredientRepository", () => {
   describe("create", () => {
     it("inserts a row and returns the full persisted shape", async () => {
       const persistedIngredient = await ingredientRepository.create(
-        sampleIngredientInput
+        mockCreateIngredientData,
       );
+
+      const { servingSize, ...createFieldsWithoutServing } = mockCreateIngredientData;
 
       expect(persistedIngredient).toEqual({
         id: expect.stringMatching(UUID_REGEX),
-        ...sampleIngredientInput,
+        ...createFieldsWithoutServing,
+        serving_size: servingSize,
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       });
@@ -31,13 +33,13 @@ describe("ingredientRepository", () => {
 
     it("returns all rows sorted by created_at desc (newest first)", async () => {
       const ingredientOldest = await ingredientRepository.create(
-        buildIngredientInput({ name: "ingredient-1" })
+        generateIngredientInput({ name: "ingredient-1" }),
       );
       const ingredientMiddle = await ingredientRepository.create(
-        buildIngredientInput({ name: "ingredient-2" })
+        generateIngredientInput({ name: "ingredient-2" }),
       );
       const ingredientNewest = await ingredientRepository.create(
-        buildIngredientInput({ name: "ingredient-3" })
+        generateIngredientInput({ name: "ingredient-3" }),
       );
 
       const rows = await ingredientRepository.findAll();
@@ -58,7 +60,7 @@ describe("ingredientRepository", () => {
   describe("findById", () => {
     it("returns the row when it exists", async () => {
       const persistedIngredient = await ingredientRepository.create(
-        sampleIngredientInput
+        mockCreateIngredientData,
       );
       const found = await ingredientRepository.findById(persistedIngredient.id);
 
@@ -79,10 +81,10 @@ describe("ingredientRepository", () => {
 
     it("returns all ids when all exist", async () => {
       const ingredient1 = await ingredientRepository.create(
-        buildIngredientInput({ name: "ingredient-1" })
+        generateIngredientInput({ name: "ingredient-1" }),
       );
       const ingredient2 = await ingredientRepository.create(
-        buildIngredientInput({ name: "ingredient-2" })
+        generateIngredientInput({ name: "ingredient-2" }),
       );
 
       const result = await ingredientRepository.findExistingIds([
@@ -94,7 +96,7 @@ describe("ingredientRepository", () => {
 
     it("returns only the subset of ids that exist", async () => {
       const ingredient1 = await ingredientRepository.create(
-        buildIngredientInput({ name: "ingredient-1" })
+        generateIngredientInput({ name: "ingredient-1" }),
       );
 
       const result = await ingredientRepository.findExistingIds([
@@ -111,7 +113,7 @@ describe("ingredientRepository", () => {
 
     it("deduplicates repeated ids in the input", async () => {
       const ingredient1 = await ingredientRepository.create(
-        buildIngredientInput({ name: "ingredient-1" })
+        generateIngredientInput({ name: "ingredient-1" }),
       );
 
       const result = await ingredientRepository.findExistingIds([
@@ -125,7 +127,7 @@ describe("ingredientRepository", () => {
 
   describe("update", () => {
     it("returns the full row with patched fields and a bumped updated_at", async () => {
-      const beforeUpdate = await ingredientRepository.create(sampleIngredientInput);
+      const beforeUpdate = await ingredientRepository.create(mockCreateIngredientData);
 
       const updatedIngredient = await ingredientRepository.update(beforeUpdate.id, {
         calories: 200,
@@ -139,7 +141,7 @@ describe("ingredientRepository", () => {
         updated_at: expect.any(Date),
       });
       expect(updatedIngredient!.updated_at.getTime()).toBeGreaterThanOrEqual(
-        beforeUpdate.updated_at.getTime()
+        beforeUpdate.updated_at.getTime(),
       );
     });
 
@@ -154,14 +156,12 @@ describe("ingredientRepository", () => {
   describe("delete", () => {
     it("returns true and removes the row when it exists", async () => {
       const persistedIngredient = await ingredientRepository.create(
-        sampleIngredientInput
+        mockCreateIngredientData,
       );
       const deleted = await ingredientRepository.delete(persistedIngredient.id);
 
       expect(deleted).toBe(true);
-      expect(
-        await ingredientRepository.findById(persistedIngredient.id)
-      ).toBeNull();
+      expect(await ingredientRepository.findById(persistedIngredient.id)).toBeNull();
     });
 
     it("returns false when the row does not exist", async () => {

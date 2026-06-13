@@ -106,7 +106,7 @@ describe("Meal Groups API", () => {
       expect(secondDefault.body.display_as_default).toBe(true);
 
       const firstRefetched = await request(app).get(
-        `/api/meal-groups/${firstDefault.body.id}`
+        `/api/meal-groups/${firstDefault.body.id}`,
       );
       expect(firstRefetched.body.display_as_default).toBe(false);
     });
@@ -133,7 +133,7 @@ describe("Meal Groups API", () => {
         });
 
       const refetched = await request(app).get(
-        `/api/meal-groups/${breakfastDefault.body.id}`
+        `/api/meal-groups/${breakfastDefault.body.id}`,
       );
       expect(refetched.body.display_as_default).toBe(true);
     });
@@ -175,9 +175,7 @@ describe("Meal Groups API", () => {
           meals: [{ mealId: meal.id }],
         });
 
-      const res = await request(app).get(
-        `/api/meal-groups/${created.body.id}`
-      );
+      const res = await request(app).get(`/api/meal-groups/${created.body.id}`);
 
       expect(res.status).toBe(200);
       expect(res.body.name).toBe("Dinner Ideas");
@@ -186,7 +184,7 @@ describe("Meal Groups API", () => {
 
     it("returns 404 for a non-existent meal group", async () => {
       const res = await request(app).get(
-        "/api/meal-groups/00000000-0000-0000-0000-000000000000"
+        "/api/meal-groups/00000000-0000-0000-0000-000000000000",
       );
       expect(res.status).toBe(404);
     });
@@ -236,7 +234,7 @@ describe("Meal Groups API", () => {
       expect(patched.body.display_as_default).toBe(true);
 
       const firstRefetched = await request(app).get(
-        `/api/meal-groups/${firstDefault.body.id}`
+        `/api/meal-groups/${firstDefault.body.id}`,
       );
       expect(firstRefetched.body.display_as_default).toBe(false);
     });
@@ -260,9 +258,7 @@ describe("Meal Groups API", () => {
           meals: [{ mealId: meal.id }],
         });
 
-      const res = await request(app).delete(
-        `/api/meal-groups/${created.body.id}`
-      );
+      const res = await request(app).delete(`/api/meal-groups/${created.body.id}`);
       expect(res.status).toBe(204);
 
       const list = await request(app).get("/api/meal-groups");
@@ -271,7 +267,7 @@ describe("Meal Groups API", () => {
 
     it("returns 404 for a non-existent meal group", async () => {
       const res = await request(app).delete(
-        "/api/meal-groups/00000000-0000-0000-0000-000000000000"
+        "/api/meal-groups/00000000-0000-0000-0000-000000000000",
       );
       expect(res.status).toBe(404);
     });

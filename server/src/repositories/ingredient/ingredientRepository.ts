@@ -1,4 +1,9 @@
 import { getDb } from "../../db/database.js";
+import type {
+  CreateIngredientData,
+  TIngredientUnit,
+  UpdateIngredientData,
+} from "../../schemas/ingredient.js";
 
 /**
  * Return-shape convention (same idea as other repos):
@@ -13,25 +18,18 @@ export interface IngredientRow {
   protein: number;
   carbs: number;
   fats: number;
+  serving_size: number;
+  unit: TIngredientUnit;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface CreateIngredientData {
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fats: number;
-}
-
-export type UpdateIngredientData = Partial<CreateIngredientData>;
-
 export const ingredientRepository = {
   async create(data: CreateIngredientData): Promise<IngredientRow> {
+    const { servingSize, ...rest } = data;
     const row = await getDb()
       .insertInto("ingredient")
-      .values(data)
+      .values({ ...rest, serving_size: servingSize })
       .returningAll()
       .executeTakeFirstOrThrow();
     return row;
@@ -66,13 +64,16 @@ export const ingredientRepository = {
     return ingredientIds;
   },
 
-  async update(
-    id: string,
-    data: UpdateIngredientData
-  ): Promise<IngredientRow | null> {
+  async update(id: string, data: UpdateIngredientData): Promise<IngredientRow | null> {
+    const { servingSize, ...rest } = data;
+    const values = {
+      ...rest,
+      ...(servingSize !== undefined ? { serving_size: servingSize } : {}),
+      updated_at: new Date(),
+    };
     const row = await getDb()
       .updateTable("ingredient")
-      .set({ ...data, updated_at: new Date() })
+      .set(values)
       .where("id", "=", id)
       .returningAll()
       .executeTakeFirst();
