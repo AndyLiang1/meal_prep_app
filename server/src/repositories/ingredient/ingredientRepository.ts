@@ -53,6 +53,16 @@ export const ingredientRepository = {
     return row ?? null;
   },
 
+  async findByIds(ids: string[]): Promise<IngredientRow[]> {
+    if (ids.length === 0) return [];
+    const rows = await getDb()
+      .selectFrom("ingredient")
+      .selectAll()
+      .where("id", "in", ids)
+      .execute();
+    return rows;
+  },
+
   async findExistingIds(ids: string[]): Promise<string[]> {
     if (ids.length === 0) return [];
     const rows = await getDb()

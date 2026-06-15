@@ -20,6 +20,8 @@ export interface CompositeFood {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   name: string;
+  serving_size: Numeric;
+  unit: IngredientUnit;
   updated_at: Generated<Timestamp>;
 }
 

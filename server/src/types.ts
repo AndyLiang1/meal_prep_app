@@ -30,5 +30,13 @@ export interface TCompositeFood {
   protein: number;
   carbs: number;
   fats: number;
+  servingSize: number;
+  unit: TIngredientUnit;
   ingredients: TCompositeFoodIngredient[];
+}
+
+export interface TMeal {
+  id: string;
+  name: string;
+  foods: (TIngredient | TCompositeFood)[];
 }

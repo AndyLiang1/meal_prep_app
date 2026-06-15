@@ -17,6 +17,8 @@ describe("compositeFoodRepository", () => {
 
       const compositeFood = await compositeFoodRepository.createWithIngredients({
         name: "composite-food-1",
+        servingSize: 250,
+        unit: "GRAM",
         ingredients: [
           { ingredientId: ingredient1.id, amount: 50 },
           { ingredientId: ingredient2.id, amount: 200 },
@@ -26,6 +28,8 @@ describe("compositeFoodRepository", () => {
       expect(compositeFood).toEqual({
         id: expect.stringMatching(UUID_REGEX),
         name: "composite-food-1",
+        serving_size: 250,
+        unit: "GRAM",
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       });
@@ -59,6 +63,8 @@ describe("compositeFoodRepository", () => {
       await expect(
         compositeFoodRepository.createWithIngredients({
           name: "composite-food-invalid-fk",
+          servingSize: 100,
+          unit: "GRAM",
           ingredients: [{ ingredientId: MISSING_ID, amount: 100 }],
         }),
       ).rejects.toThrow();
@@ -115,6 +121,8 @@ describe("compositeFoodRepository", () => {
 
       const compositeFoodRow1 = await compositeFoodRepository.createWithIngredients({
         name: "composite-older",
+        servingSize: 200,
+        unit: "GRAM",
         ingredients: [
           { ingredientId: ingredient1.id, amount: 50 },
           { ingredientId: ingredient2.id, amount: 150 },
@@ -122,6 +130,8 @@ describe("compositeFoodRepository", () => {
       });
       const compositeFoodRow2 = await compositeFoodRepository.createWithIngredients({
         name: "composite-newer",
+        servingSize: 200,
+        unit: "GRAM",
         ingredients: [{ ingredientId: ingredient2.id, amount: 200 }],
       });
 
@@ -132,6 +142,8 @@ describe("compositeFoodRepository", () => {
         {
           id: compositeFoodRow1.id,
           name: compositeFoodRow1.name,
+          cf_serving_size: 200,
+          cf_unit: "GRAM",
           ingredient_id: ingredient1.id,
           ingredient_name: "ingredient-1",
           amount: 50,
@@ -145,6 +157,8 @@ describe("compositeFoodRepository", () => {
         {
           id: compositeFoodRow1.id,
           name: compositeFoodRow1.name,
+          cf_serving_size: 200,
+          cf_unit: "GRAM",
           ingredient_id: ingredient2.id,
           ingredient_name: "ingredient-2",
           amount: 150,
@@ -158,6 +172,8 @@ describe("compositeFoodRepository", () => {
         {
           id: compositeFoodRow2.id,
           name: compositeFoodRow2.name,
+          cf_serving_size: 200,
+          cf_unit: "GRAM",
           ingredient_id: ingredient2.id,
           ingredient_name: "ingredient-2",
           amount: 200,
@@ -188,6 +204,8 @@ describe("compositeFoodRepository", () => {
 
       const compositeFoodRow1 = await compositeFoodRepository.createWithIngredients({
         name: "composite-with-two",
+        servingSize: 350,
+        unit: "GRAM",
         ingredients: [
           { ingredientId: ingredient1.id, amount: 100 },
           { ingredientId: ingredient2.id, amount: 250 },
@@ -196,6 +214,8 @@ describe("compositeFoodRepository", () => {
 
       await compositeFoodRepository.createWithIngredients({
         name: "composite-with-two",
+        servingSize: 350,
+        unit: "GRAM",
         ingredients: [
           { ingredientId: ingredient1.id, amount: 100 },
           { ingredientId: ingredient2.id, amount: 250 },
@@ -212,6 +232,8 @@ describe("compositeFoodRepository", () => {
           {
             id: compositeFoodRow1.id,
             name: compositeFoodRow1.name,
+            cf_serving_size: 350,
+            cf_unit: "GRAM",
             ingredient_id: ingredient1.id,
             ingredient_name: "ingredient-a",
             amount: 100,
@@ -225,6 +247,8 @@ describe("compositeFoodRepository", () => {
           {
             id: compositeFoodRow1.id,
             name: compositeFoodRow1.name,
+            cf_serving_size: 350,
+            cf_unit: "GRAM",
             ingredient_id: ingredient2.id,
             ingredient_name: "ingredient-b",
             amount: 250,
@@ -246,6 +270,8 @@ describe("compositeFoodRepository", () => {
 
       const compositeFood = await compositeFoodRepository.createWithIngredients({
         name: "composite-food-1",
+        servingSize: 200,
+        unit: "GRAM",
         ingredients: [{ ingredientId: ingredient1.id, amount: 200 }],
       });
 
@@ -288,14 +314,25 @@ describe("compositeFoodRepository", () => {
       );
       const cf = await compositeFoodRepository.createWithIngredients({
         name: "before-rename",
+        servingSize: 100,
+        unit: "GRAM",
         ingredients: [{ ingredientId: ingredient.id, amount: 100 }],
       });
 
       const updated = await compositeFoodRepository.update(cf.id, {
         name: "after-rename",
+        servingSize: 150,
+        unit: "MILLILITER",
       });
 
-      expect(updated).toMatchObject({ id: cf.id, name: "after-rename" });
+      expect(updated).toEqual({
+        id: cf.id,
+        name: "after-rename",
+        serving_size: 150,
+        unit: "MILLILITER",
+        created_at: cf.created_at,
+        updated_at: expect.any(Date),
+      });
 
       const ingredientRows = await compositeFoodRepository.findIngredientRows(cf.id);
       expect(ingredientRows).toHaveLength(1);
@@ -303,7 +340,7 @@ describe("compositeFoodRepository", () => {
       expect(ingredientRows[0].amount).toBe(100);
     });
 
-    it("replaces ingredients without changing the name", async () => {
+    it("replaces ingredients without changing the metadata", async () => {
       const ingredient1 = await ingredientRepository.create(
         generateIngredientInput({ name: "ingredient-swap-1" }),
       );
@@ -312,6 +349,8 @@ describe("compositeFoodRepository", () => {
       );
       const cf = await compositeFoodRepository.createWithIngredients({
         name: "swap-test",
+        servingSize: 100,
+        unit: "GRAM",
         ingredients: [{ ingredientId: ingredient1.id, amount: 100 }],
       });
 
@@ -319,7 +358,14 @@ describe("compositeFoodRepository", () => {
         ingredients: [{ ingredientId: ingredient2.id, amount: 250 }],
       });
 
-      expect(updated).toMatchObject({ id: cf.id, name: "swap-test" });
+      expect(updated).toEqual({
+        id: cf.id,
+        name: "swap-test",
+        serving_size: 100,
+        unit: "GRAM",
+        created_at: cf.created_at,
+        updated_at: expect.any(Date),
+      });
 
       const ingredientRows = await compositeFoodRepository.findIngredientRows(cf.id);
       expect(ingredientRows).toHaveLength(1);
@@ -327,7 +373,7 @@ describe("compositeFoodRepository", () => {
       expect(ingredientRows[0].amount).toBe(250);
     });
 
-    it("updates name and ingredients together", async () => {
+    it("updates metadata and ingredients together", async () => {
       const ingredient1 = await ingredientRepository.create(
         generateIngredientInput({ name: "ingredient-both-1" }),
       );
@@ -336,6 +382,8 @@ describe("compositeFoodRepository", () => {
       );
       const cf = await compositeFoodRepository.createWithIngredients({
         name: "both-before",
+        servingSize: 50,
+        unit: "GRAM",
         ingredients: [{ ingredientId: ingredient1.id, amount: 50 }],
       });
 
@@ -347,7 +395,14 @@ describe("compositeFoodRepository", () => {
         ],
       });
 
-      expect(updated).toMatchObject({ id: cf.id, name: "both-after" });
+      expect(updated).toEqual({
+        id: cf.id,
+        name: "both-after",
+        serving_size: 50,
+        unit: "GRAM",
+        created_at: cf.created_at,
+        updated_at: expect.any(Date),
+      });
 
       const ingredientRows = await compositeFoodRepository.findIngredientRows(cf.id);
       const summaries = ingredientRows.map((r) => ({
@@ -371,6 +426,8 @@ describe("compositeFoodRepository", () => {
       );
       const cf = await compositeFoodRepository.createWithIngredients({
         name: "remove-test",
+        servingSize: 300,
+        unit: "GRAM",
         ingredients: [
           { ingredientId: ingredient1.id, amount: 100 },
           { ingredientId: ingredient2.id, amount: 200 },
@@ -395,6 +452,8 @@ describe("compositeFoodRepository", () => {
       );
       const cf = await compositeFoodRepository.createWithIngredients({
         name: "add-test",
+        servingSize: 100,
+        unit: "GRAM",
         ingredients: [{ ingredientId: ingredient1.id, amount: 100 }],
       });
 

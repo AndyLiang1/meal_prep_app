@@ -97,6 +97,16 @@ export const mealRepository = {
     return rows;
   },
 
+  async findFoodsByMealIds(mealIds: string[]): Promise<MealFoodRow[]> {
+    if (mealIds.length === 0) return [];
+    const rows = await getDb()
+      .selectFrom("meal_food")
+      .selectAll()
+      .where("meal_id", "in", mealIds)
+      .execute();
+    return rows;
+  },
+
   async update(id: string, data: UpdateMealData): Promise<MealRow | null> {
     const row = await getDb()
       .updateTable("meal")

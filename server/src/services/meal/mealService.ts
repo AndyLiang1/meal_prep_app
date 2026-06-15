@@ -1,163 +1,203 @@
-import { compositeFoodRepository } from "../../repositories/compositeFood/compositeFoodRepository.js";
-import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
 import {
   mealRepository,
   type CreateMealData,
   type UpdateMealData,
+  type MealFoodRow,
 } from "../../repositories/meal/mealRepository.js";
-
-type IngredientFoodDetail = {
-  id: string;
-  type: "ingredient";
-  ingredientId: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fats: number;
-};
-
-type CompositeFoodDetail = {
-  id: string;
-  type: "composite";
-  compositeFoodId: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fats: number;
-};
-
-type MealFoodDetail = IngredientFoodDetail | CompositeFoodDetail;
+import {
+  ingredientRepository,
+  type IngredientRow,
+} from "../../repositories/ingredient/ingredientRepository.js";
+import {
+  compositeFoodRepository,
+  type CompositeFoodWithIngredientsJoinRow,
+} from "../../repositories/compositeFood/compositeFoodRepository.js";
+import type {
+  TIngredient,
+  TCompositeFood,
+  TCompositeFoodIngredient,
+  TMeal,
+} from "../../types.js";
 
 function round2(value: number): number {
   const scaled = Math.round(value * 100);
   return scaled / 100;
 }
 
-async function getCompositeMacros(compositeFoodId: string) {
-  const rows = await compositeFoodRepository.findIngredientRows(compositeFoodId);
-
-  let calories = 0;
-  let protein = 0;
-  let carbs = 0;
-  let fats = 0;
-  for (const r of rows) {
-    const scale = r.amount / r.serving_size;
-    calories += r.calories * scale;
-    protein += r.protein * scale;
-    carbs += r.carbs * scale;
-    fats += r.fats * scale;
-  }
-  return { calories, protein, carbs, fats };
-}
-
-async function getMealFoodDetails(mealId: string): Promise<MealFoodDetail[]> {
-  const foods = await mealRepository.findFoodsByMealId(mealId);
-
-  const details = await Promise.all(
-    foods.map(async (mf): Promise<MealFoodDetail> => {
-      if (mf.ingredient_id) {
-        const ing = await ingredientRepository.findById(mf.ingredient_id);
-
-        const ingredientDetail: IngredientFoodDetail = {
-          id: mf.id,
-          type: "ingredient",
-          ingredientId: mf.ingredient_id,
-          name: ing?.name ?? "Unknown",
-          calories: ing?.calories ?? 0,
-          protein: ing?.protein ?? 0,
-          carbs: ing?.carbs ?? 0,
-          fats: ing?.fats ?? 0,
-        };
-        return ingredientDetail;
-      }
-
-      const compositeFoodId = mf.composite_food_id!;
-      const cf = await compositeFoodRepository.findById(compositeFoodId);
-      const macros = await getCompositeMacros(compositeFoodId);
-
-      const compositeDetail: CompositeFoodDetail = {
-        id: mf.id,
-        type: "composite",
-        compositeFoodId,
-        name: cf?.name ?? "Unknown",
-        calories: round2(macros.calories),
-        protein: round2(macros.protein),
-        carbs: round2(macros.carbs),
-        fats: round2(macros.fats),
-      };
-      return compositeDetail;
-    }),
-  );
-  return details;
-}
-
-function sumMacros(foods: MealFoodDetail[]) {
-  let calories = 0;
-  let protein = 0;
-  let carbs = 0;
-  let fats = 0;
-  for (const f of foods) {
-    calories += f.calories;
-    protein += f.protein;
-    carbs += f.carbs;
-    fats += f.fats;
-  }
-  return {
-    calories: round2(calories),
-    protein: round2(protein),
-    carbs: round2(carbs),
-    fats: round2(fats),
+function toIngredient(row: IngredientRow): TIngredient {
+  const ingredient: TIngredient = {
+    id: row.id,
+    name: row.name,
+    calories: row.calories,
+    protein: row.protein,
+    carbs: row.carbs,
+    fats: row.fats,
+    servingSize: row.serving_size,
+    unit: row.unit,
   };
+  return ingredient;
+}
+
+function toCompositeFood(
+  compositeFoodId: string,
+  joinRows: CompositeFoodWithIngredientsJoinRow[],
+): TCompositeFood {
+  const firstRow = joinRows[0];
+  const ingredients: TCompositeFoodIngredient[] = [];
+  let totalCalories = 0;
+  let totalProtein = 0;
+  let totalCarbs = 0;
+  let totalFats = 0;
+
+  for (const joinRow of joinRows) {
+    if (!joinRow.ingredient_id) continue;
+
+    const scale = (joinRow.amount ?? 0) / (joinRow.serving_size ?? 1);
+
+    const compositeFoodIngredient: TCompositeFoodIngredient = {
+      ingredientId: joinRow.ingredient_id,
+      name: joinRow.ingredient_name ?? "Unknown",
+      calories: joinRow.calories ?? 0,
+      protein: joinRow.protein ?? 0,
+      carbs: joinRow.carbs ?? 0,
+      fats: joinRow.fats ?? 0,
+      amount: joinRow.amount ?? 0,
+      unit: joinRow.unit ?? "GRAM",
+      servingSize: joinRow.serving_size ?? 0,
+    };
+    ingredients.push(compositeFoodIngredient);
+
+    totalCalories += (joinRow.calories ?? 0) * scale;
+    totalProtein += (joinRow.protein ?? 0) * scale;
+    totalCarbs += (joinRow.carbs ?? 0) * scale;
+    totalFats += (joinRow.fats ?? 0) * scale;
+  }
+
+  const compositeFood: TCompositeFood = {
+    id: compositeFoodId,
+    name: firstRow.name,
+    calories: round2(totalCalories),
+    protein: round2(totalProtein),
+    carbs: round2(totalCarbs),
+    fats: round2(totalFats),
+    servingSize: firstRow.cf_serving_size,
+    unit: firstRow.cf_unit,
+    ingredients,
+  };
+  return compositeFood;
+}
+
+interface FoodCatalog {
+  ingredientMap: Map<string, IngredientRow>;
+  compositeFoodMap: Map<string, CompositeFoodWithIngredientsJoinRow[]>;
+}
+
+async function fetchFoodCatalog(mealFoodRows: MealFoodRow[]): Promise<FoodCatalog> {
+  const ingredientIds = mealFoodRows
+    .filter((foodRow) => foodRow.ingredient_id !== null)
+    .map((foodRow) => foodRow.ingredient_id!);
+
+  const compositeFoodIds = mealFoodRows
+    .filter((foodRow) => foodRow.composite_food_id !== null)
+    .map((foodRow) => foodRow.composite_food_id!);
+
+  const [ingredientRows, compositeFoodJoinRows] = await Promise.all([
+    ingredientRepository.findByIds(ingredientIds),
+    compositeFoodRepository.findByIdsWithIngredients(compositeFoodIds),
+  ]);
+
+  const ingredientMap = new Map(ingredientRows.map((row) => [row.id, row]));
+
+  const compositeFoodMap = new Map<string, CompositeFoodWithIngredientsJoinRow[]>();
+  for (const joinRow of compositeFoodJoinRows) {
+    const existing = compositeFoodMap.get(joinRow.id) ?? [];
+    existing.push(joinRow);
+    compositeFoodMap.set(joinRow.id, existing);
+  }
+
+  return { ingredientMap, compositeFoodMap };
+}
+
+function assembleFoods(
+  mealFoodRows: MealFoodRow[],
+  catalog: FoodCatalog,
+): (TIngredient | TCompositeFood)[] {
+  const foods: (TIngredient | TCompositeFood)[] = [];
+
+  for (const mealFoodRow of mealFoodRows) {
+    if (mealFoodRow.ingredient_id) {
+      const ingredientRow = catalog.ingredientMap.get(mealFoodRow.ingredient_id);
+      if (!ingredientRow) continue;
+      foods.push(toIngredient(ingredientRow));
+    }
+
+    if (mealFoodRow.composite_food_id) {
+      const joinRows = catalog.compositeFoodMap.get(mealFoodRow.composite_food_id);
+      if (!joinRows || joinRows.length === 0) continue;
+      foods.push(toCompositeFood(mealFoodRow.composite_food_id, joinRows));
+    }
+  }
+
+  return foods;
 }
 
 export const mealService = {
-  async create(input: CreateMealData) {
-    const meal = await mealRepository.createWithFoods(input);
-    const foods = await getMealFoodDetails(meal.id);
-    const macros = sumMacros(foods);
-    const response = {
-      ...meal,
+  async create(input: CreateMealData): Promise<TMeal> {
+    const mealRecord = await mealRepository.createWithFoods(input);
+    const mealFoodRows = await mealRepository.findFoodsByMealId(mealRecord.id);
+    const catalog = await fetchFoodCatalog(mealFoodRows);
+    const foods = assembleFoods(mealFoodRows, catalog);
+    const createdMeal: TMeal = {
+      id: mealRecord.id,
+      name: mealRecord.name,
       foods,
-      ...macros,
     };
-    return response;
+    return createdMeal;
   },
 
-  async list() {
-    const meals = await mealRepository.findAll();
+  async list(): Promise<TMeal[]> {
+    const mealRows = await mealRepository.findAll();
+    const allMealIds = mealRows.map((mealRow) => mealRow.id);
+    const allMealFoodRows = await mealRepository.findFoodsByMealIds(allMealIds);
 
-    const responses = await Promise.all(
-      meals.map(async (m) => {
-        const foods = await getMealFoodDetails(m.id);
-        const macros = sumMacros(foods);
-        const response = {
-          ...m,
-          foods,
-          ...macros,
-        };
-        return response;
-      }),
-    );
-    return responses;
+    const catalog = await fetchFoodCatalog(allMealFoodRows);
+
+    const mealFoodRowsByMealId = new Map<string, MealFoodRow[]>();
+    for (const foodRow of allMealFoodRows) {
+      const existing = mealFoodRowsByMealId.get(foodRow.meal_id) ?? [];
+      existing.push(foodRow);
+      mealFoodRowsByMealId.set(foodRow.meal_id, existing);
+    }
+
+    const meals: TMeal[] = mealRows.map((mealRow) => {
+      const mealFoodRowsForMeal = mealFoodRowsByMealId.get(mealRow.id) ?? [];
+      const foods = assembleFoods(mealFoodRowsForMeal, catalog);
+      const meal: TMeal = {
+        id: mealRow.id,
+        name: mealRow.name,
+        foods,
+      };
+      return meal;
+    });
+    return meals;
   },
 
-  async update(id: string, input: UpdateMealData) {
-    const updated = await mealRepository.update(id, input);
-    if (!updated) return null;
+  async update(id: string, input: UpdateMealData): Promise<TMeal | null> {
+    const updatedRecord = await mealRepository.update(id, input);
+    if (!updatedRecord) return null;
 
-    const foods = await getMealFoodDetails(updated.id);
-    const macros = sumMacros(foods);
-    const response = {
-      ...updated,
+    const mealFoodRows = await mealRepository.findFoodsByMealId(updatedRecord.id);
+    const catalog = await fetchFoodCatalog(mealFoodRows);
+    const foods = assembleFoods(mealFoodRows, catalog);
+    const updatedMeal: TMeal = {
+      id: updatedRecord.id,
+      name: updatedRecord.name,
       foods,
-      ...macros,
     };
-    return response;
+    return updatedMeal;
   },
 
-  async delete(id: string) {
+  async delete(id: string): Promise<boolean> {
     const deleted = await mealRepository.delete(id);
     return deleted;
   },

@@ -6,6 +6,8 @@ import {
 import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
 import type { TCompositeFood } from "../../types.js";
 
+import type { TIngredientUnit } from "../../schemas/ingredient.js";
+
 export interface IngredientRef {
   ingredientId: string;
   amount: number;
@@ -13,11 +15,15 @@ export interface IngredientRef {
 
 export interface CreateCompositeFoodInput {
   name: string;
+  servingSize: number;
+  unit: TIngredientUnit;
   ingredients: IngredientRef[];
 }
 
 export interface UpdateCompositeFoodInput {
   name?: string;
+  servingSize?: number;
+  unit?: TIngredientUnit;
   ingredients?: IngredientRef[];
 }
 
@@ -73,17 +79,26 @@ function formatIngredients(rows: CompositeIngredientJoinRow[]) {
   return formatted;
 }
 
+interface CompositeFoodAccumulator {
+  name: string;
+  servingSize: number;
+  unit: TIngredientUnit;
+  ingredientRows: CompositeIngredientJoinRow[];
+}
+
 function buildCompositeFoods(
   joinRows: CompositeFoodWithIngredientsJoinRow[],
 ): TCompositeFood[] {
-  const compositeFoodMap = new Map<
-    string,
-    { name: string; ingredientRows: CompositeIngredientJoinRow[] }
-  >();
+  const compositeFoodMap = new Map<string, CompositeFoodAccumulator>();
 
   for (const joinRow of joinRows) {
     if (!compositeFoodMap.has(joinRow.id)) {
-      compositeFoodMap.set(joinRow.id, { name: joinRow.name, ingredientRows: [] });
+      compositeFoodMap.set(joinRow.id, {
+        name: joinRow.name,
+        servingSize: joinRow.cf_serving_size,
+        unit: joinRow.cf_unit,
+        ingredientRows: [],
+      });
     }
     if (joinRow.ingredient_id !== null) {
       compositeFoodMap.get(joinRow.id)!.ingredientRows.push({
@@ -101,17 +116,26 @@ function buildCompositeFoods(
   }
 
   const compositeFoods: TCompositeFood[] = [];
-  for (const [id, { name, ingredientRows }] of compositeFoodMap) {
-    const macros = computeMacros(ingredientRows);
-    const ingredients = formatIngredients(ingredientRows);
-    compositeFoods.push({ id, name, ...macros, ingredients });
+  for (const [id, accumulator] of compositeFoodMap) {
+    const macros = computeMacros(accumulator.ingredientRows);
+    const ingredients = formatIngredients(accumulator.ingredientRows);
+    compositeFoods.push({
+      id,
+      name: accumulator.name,
+      servingSize: accumulator.servingSize,
+      unit: accumulator.unit,
+      ...macros,
+      ingredients,
+    });
   }
   return compositeFoods;
 }
 
 export const compositeFoodService = {
   async create(input: CreateCompositeFoodInput): Promise<TCompositeFood> {
-    const uniqueIds = [...new Set(input.ingredients.map((r) => r.ingredientId))];
+    const uniqueIds = [
+      ...new Set(input.ingredients.map((ingredientRef) => ingredientRef.ingredientId)),
+    ];
     const existingIds = await ingredientRepository.findExistingIds(uniqueIds);
     if (existingIds.length !== uniqueIds.length) {
       throw new Error("One or more ingredients not found");
@@ -123,7 +147,10 @@ export const compositeFoodService = {
     const ingredients = formatIngredients(rows);
     const macros = computeMacros(rows);
     const response: TCompositeFood = {
-      ...compositeFood,
+      id: compositeFood.id,
+      name: compositeFood.name,
+      servingSize: compositeFood.serving_size,
+      unit: compositeFood.unit,
       calories: macros.calories,
       protein: macros.protein,
       carbs: macros.carbs,

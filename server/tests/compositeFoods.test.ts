@@ -34,6 +34,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Protein Shake",
+          servingSize: 300,
+          unit: "GRAM",
           ingredients: [
             { ingredientId: banana.id, amount: 100 },
             { ingredientId: milk.id, amount: 200 },
@@ -49,7 +51,7 @@ describe("Composite Foods API", () => {
     it("should reject when no ingredients are provided", async () => {
       const res = await request(app)
         .post("/api/composite-foods")
-        .send({ name: "Empty Food", ingredients: [] });
+        .send({ name: "Empty Food", servingSize: 100, unit: "GRAM", ingredients: [] });
 
       expect(res.status).toBe(400);
     });
@@ -59,6 +61,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Ghost Food",
+          servingSize: 100,
+          unit: "GRAM",
           ingredients: [
             {
               ingredientId: "00000000-0000-0000-0000-000000000000",
@@ -93,6 +97,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Protein Shake",
+          servingSize: 300,
+          unit: "GRAM",
           ingredients: [
             { ingredientId: banana.id, amount: 100 },
             { ingredientId: milk.id, amount: 200 },
@@ -126,6 +132,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Banana Smoothie",
+          servingSize: 300,
+          unit: "GRAM",
           ingredients: [{ ingredientId: banana.id, amount: 300 }],
         });
 
@@ -158,6 +166,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Banana Smoothie",
+          servingSize: 100,
+          unit: "GRAM",
           ingredients: [{ ingredientId: banana.id, amount: 100 }],
         });
 
@@ -184,6 +194,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Banana Smoothie",
+          servingSize: 100,
+          unit: "GRAM",
           ingredients: [{ ingredientId: banana.id, amount: 100 }],
         });
 
@@ -217,6 +229,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Two Ingredients",
+          servingSize: 200,
+          unit: "GRAM",
           ingredients: [
             { ingredientId: banana.id, amount: 100 },
             { ingredientId: milk.id, amount: 100 },
@@ -248,6 +262,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Banana Smoothie",
+          servingSize: 100,
+          unit: "GRAM",
           ingredients: [{ ingredientId: banana.id, amount: 100 }],
         });
 
@@ -264,6 +280,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Banana Smoothie",
+          servingSize: 100,
+          unit: "GRAM",
           ingredients: [{ ingredientId: banana.id, amount: 100 }],
         });
 
@@ -287,6 +305,8 @@ describe("Composite Foods API", () => {
         .post("/api/composite-foods")
         .send({
           name: "Banana Smoothie",
+          servingSize: 100,
+          unit: "GRAM",
           ingredients: [{ ingredientId: banana.id, amount: 100 }],
         });
 

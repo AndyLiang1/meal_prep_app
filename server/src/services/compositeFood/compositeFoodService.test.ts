@@ -69,6 +69,8 @@ describe("compositeFoodService", () => {
 
       const input: CreateCompositeFoodInput = {
         name: "composite-food-1",
+        servingSize: 100,
+        unit: "GRAM",
         ingredients: [{ ingredientId: MISSING_ID, amount: 100 }],
       };
       await expect(compositeFoodService.create(input)).rejects.toThrow();
@@ -188,8 +190,8 @@ describe("compositeFoodService", () => {
         name: "composite-food-1-renamed",
       });
       mockedCompositeFoodRepo.findByIdWithIngredients.mockResolvedValue(
-        mockFlatJoinRowsCompositeFood1.map((row) => ({
-          ...row,
+        mockFlatJoinRowsCompositeFood1.map((joinRow) => ({
+          ...joinRow,
           name: "composite-food-1-renamed",
         })),
       );
@@ -226,6 +228,8 @@ describe("compositeFoodService", () => {
         {
           id: MOCK_COMPOSITE_FOOD_ID_1,
           name: "composite-food-1",
+          cf_serving_size: 300,
+          cf_unit: "GRAM",
           amount: 300,
           serving_size: 100,
           unit: "GRAM",
@@ -254,6 +258,8 @@ describe("compositeFoodService", () => {
       expect(updatedCompositeFood).toEqual({
         id: MOCK_COMPOSITE_FOOD_ID_1,
         name: "composite-food-1",
+        servingSize: 300,
+        unit: "GRAM",
         calories: 306 + 100 * 3,
         protein: 3.3 + 100 * 3,
         carbs: 3.6 + 100 * 3,
@@ -302,6 +308,8 @@ describe("compositeFoodService", () => {
       expect(updatedCompositeFood).toEqual({
         id: MOCK_COMPOSITE_FOOD_ID_1,
         name: "composite-food-1",
+        servingSize: 300,
+        unit: "GRAM",
         calories: 153 + 204,
         protein: 1.65 + 2.2,
         carbs: 1.8 + 2.4,
@@ -343,6 +351,8 @@ describe("compositeFoodService", () => {
       expect(updatedCompositeFood).toEqual({
         id: MOCK_COMPOSITE_FOOD_ID_1,
         name: "composite-food-1",
+        servingSize: 300,
+        unit: "GRAM",
         calories: 102,
         protein: 1.1,
         carbs: 1.2,
@@ -351,7 +361,7 @@ describe("compositeFoodService", () => {
       });
     });
 
-    it("should be able to update the name and add, update, remove ingredients all at once", async () => {
+    it("should be able to update the metadata and add, update, remove ingredients all at once", async () => {
       mockedCompositeFoodRepo.findById.mockResolvedValue(mockCompositeFoodRow1);
       mockedIngredientRepo.findExistingIds.mockResolvedValue([
         MOCK_INGREDIENT_ID_1,
@@ -359,10 +369,18 @@ describe("compositeFoodService", () => {
       ]);
       mockedCompositeFoodRepo.update.mockResolvedValue(mockCompositeFoodRow1);
       mockedCompositeFoodRepo.findByIdWithIngredients.mockResolvedValue([
-        { ...mockFlatJoinRowsCompositeFood1[0], amount: 150 },
+        {
+          ...mockFlatJoinRowsCompositeFood1[0],
+          name: "composite-food-1-updated",
+          cf_serving_size: 350,
+          cf_unit: "MILLILITER",
+          amount: 150,
+        },
         {
           id: MOCK_COMPOSITE_FOOD_ID_1,
-          name: "composite-food-1",
+          name: "composite-food-1-updated",
+          cf_serving_size: 350,
+          cf_unit: "MILLILITER",
           amount: 300,
           serving_size: 100,
           unit: "GRAM",
@@ -391,6 +409,8 @@ describe("compositeFoodService", () => {
       expect(updatedCompositeFood).toEqual({
         id: MOCK_COMPOSITE_FOOD_ID_1,
         name: "composite-food-1-updated",
+        servingSize: 350,
+        unit: "MILLILITER",
         calories: 153 + 300,
         protein: 1.65 + 300,
         carbs: 1.8 + 300,

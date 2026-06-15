@@ -6,6 +6,8 @@ import type { TIngredientUnit } from "../../schemas/ingredient.js";
 export interface CompositeFoodRow {
   id: string;
   name: string;
+  serving_size: number;
+  unit: TIngredientUnit;
   created_at: Date;
   updated_at: Date;
 }
@@ -25,6 +27,8 @@ export interface CompositeIngredientJoinRow {
 export interface CompositeFoodWithIngredientsJoinRow {
   id: string;
   name: string;
+  cf_serving_size: number;
+  cf_unit: TIngredientUnit;
   ingredient_id: string | null;
   ingredient_name: string | null;
   amount: number | null;
@@ -38,11 +42,15 @@ export interface CompositeFoodWithIngredientsJoinRow {
 
 export interface CreateCompositeFoodData {
   name: string;
+  servingSize: number;
+  unit: TIngredientUnit;
   ingredients: Array<{ ingredientId: string; amount: number }>;
 }
 
 export interface UpdateCompositeFoodInput {
   name?: string;
+  servingSize?: number;
+  unit?: TIngredientUnit;
   ingredients?: Array<{ ingredientId: string; amount: number }>;
 }
 
@@ -55,7 +63,11 @@ export const compositeFoodRepository = {
       .execute(async (transaction) => {
         const cf = await transaction
           .insertInto("composite_food")
-          .values({ name: data.name })
+          .values({
+            name: data.name,
+            serving_size: data.servingSize,
+            unit: data.unit,
+          })
           .returningAll()
           .executeTakeFirstOrThrow();
 
@@ -101,6 +113,8 @@ export const compositeFoodRepository = {
       .select([
         "cf.id",
         "cf.name",
+        "cf.serving_size as cf_serving_size",
+        "cf.unit as cf_unit",
         "cfi.ingredient_id",
         "i.name as ingredient_name",
         "cfi.amount",
@@ -113,20 +127,24 @@ export const compositeFoodRepository = {
       ])
       .orderBy("cf.created_at", "asc")
       .execute();
-    return rows;
+    // Kysely can't infer the shape through aliased columns + LEFT JOINs
+    return rows as CompositeFoodWithIngredientsJoinRow[];
   },
 
-  async findByIdWithIngredients(
-    id: string,
+  async findByIdsWithIngredients(
+    ids: string[],
   ): Promise<CompositeFoodWithIngredientsJoinRow[]> {
+    if (ids.length === 0) return [];
     const rows = await getDb()
       .selectFrom("composite_food as cf")
       .leftJoin("composite_food_ingredient as cfi", "cfi.composite_food_id", "cf.id")
       .leftJoin("ingredient as i", "i.id", "cfi.ingredient_id")
-      .where("cf.id", "=", id)
+      .where("cf.id", "in", ids)
       .select([
         "cf.id",
         "cf.name",
+        "cf.serving_size as cf_serving_size",
+        "cf.unit as cf_unit",
         "cfi.ingredient_id",
         "i.name as ingredient_name",
         "cfi.amount",
@@ -138,6 +156,13 @@ export const compositeFoodRepository = {
         "i.fats",
       ])
       .execute();
+    return rows as CompositeFoodWithIngredientsJoinRow[];
+  },
+
+  async findByIdWithIngredients(
+    id: string,
+  ): Promise<CompositeFoodWithIngredientsJoinRow[]> {
+    const rows = await this.findByIdsWithIngredients([id]);
     return rows;
   },
 
@@ -170,10 +195,16 @@ export const compositeFoodRepository = {
     const row = await getDb()
       .transaction()
       .execute(async (tx) => {
-        if (input.name !== undefined) {
+        const metadataUpdate: Record<string, unknown> = {};
+        if (input.name !== undefined) metadataUpdate.name = input.name;
+        if (input.servingSize !== undefined)
+          metadataUpdate.serving_size = input.servingSize;
+        if (input.unit !== undefined) metadataUpdate.unit = input.unit;
+
+        if (Object.keys(metadataUpdate).length > 0) {
           const updated = await tx
             .updateTable("composite_food")
-            .set({ name: input.name })
+            .set(metadataUpdate)
             .where("id", "=", id)
             .returningAll()
             .executeTakeFirst();

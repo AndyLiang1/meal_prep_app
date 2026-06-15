@@ -19,6 +19,8 @@ export async function createTestCompositeFood(
 
   const compositeFood = await compositeFoodRepository.createWithIngredients({
     name: compositeFoodName,
+    servingSize: 100,
+    unit: "GRAM",
     ingredients: ingredientRows.map((ingredientRow) => ({
       ingredientId: ingredientRow.id,
       amount: 100,

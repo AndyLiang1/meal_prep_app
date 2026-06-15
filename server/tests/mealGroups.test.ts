@@ -11,6 +11,8 @@ async function createIngredient(overrides = {}) {
       protein: 1.3,
       carbs: 27,
       fats: 0.4,
+      servingSize: 100,
+      unit: "GRAM",
       ...overrides,
     });
   return res.body;

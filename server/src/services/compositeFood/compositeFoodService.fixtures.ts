@@ -19,6 +19,8 @@ export const MOCK_INGREDIENT_ID_3 = "ingredient-3-id";
 export const mockCompositeFoodRow1: CompositeFoodRow = {
   id: MOCK_COMPOSITE_FOOD_ID_1,
   name: "composite-food-1",
+  serving_size: 300,
+  unit: "GRAM",
   created_at: new Date("2026-05-01T12:00:00.000Z"),
   updated_at: new Date("2026-05-01T12:00:00.000Z"),
 };
@@ -26,6 +28,8 @@ export const mockCompositeFoodRow1: CompositeFoodRow = {
 export const mockCompositeFoodRow2: CompositeFoodRow = {
   id: MOCK_COMPOSITE_FOOD_ID_2,
   name: "composite-food-2",
+  serving_size: 50,
+  unit: "GRAM",
   created_at: new Date("2026-05-02T12:00:00.000Z"),
   updated_at: new Date("2026-05-02T12:00:00.000Z"),
 };
@@ -71,6 +75,8 @@ export const mockIngredientJoinRow3: CompositeIngredientJoinRow = {
 
 export const mockCreateCompositeFoodInput1: CreateCompositeFoodInput = {
   name: "composite-food-1",
+  servingSize: 300,
+  unit: "GRAM",
   ingredients: [
     { ingredientId: MOCK_INGREDIENT_ID_1, amount: 100 },
     { ingredientId: MOCK_INGREDIENT_ID_2, amount: 200 },
@@ -79,6 +85,8 @@ export const mockCreateCompositeFoodInput1: CreateCompositeFoodInput = {
 
 export const mockCreateCompositeFoodInput2: CreateCompositeFoodInput = {
   name: "composite-food-2",
+  servingSize: 50,
+  unit: "GRAM",
   ingredients: [{ ingredientId: MOCK_INGREDIENT_ID_1, amount: 50 }],
 };
 
@@ -98,6 +106,8 @@ export const mockCreateCompositeFoodInput2: CreateCompositeFoodInput = {
 export const mockExpectedTCompositeFood1: TCompositeFood = {
   id: MOCK_COMPOSITE_FOOD_ID_1,
   name: "composite-food-1",
+  servingSize: 300,
+  unit: "GRAM",
   calories: 306,
   protein: 3.3,
   carbs: 3.6,
@@ -131,6 +141,8 @@ export const mockExpectedTCompositeFood1: TCompositeFood = {
 export const mockExpectedTCompositeFood2: TCompositeFood = {
   id: MOCK_COMPOSITE_FOOD_ID_2,
   name: "composite-food-2",
+  servingSize: 50,
+  unit: "GRAM",
   calories: 51,
   protein: 0.55,
   carbs: 0.6,
@@ -156,6 +168,8 @@ export const mockFlatJoinRowsCompositeFood1: CompositeFoodWithIngredientsJoinRow
   {
     id: MOCK_COMPOSITE_FOOD_ID_1,
     name: "composite-food-1",
+    cf_serving_size: 300,
+    cf_unit: "GRAM",
     ingredient_id: MOCK_INGREDIENT_ID_1,
     ingredient_name: "ingredient-a",
     amount: 100,
@@ -169,6 +183,8 @@ export const mockFlatJoinRowsCompositeFood1: CompositeFoodWithIngredientsJoinRow
   {
     id: MOCK_COMPOSITE_FOOD_ID_1,
     name: "composite-food-1",
+    cf_serving_size: 300,
+    cf_unit: "GRAM",
     ingredient_id: MOCK_INGREDIENT_ID_2,
     ingredient_name: "ingredient-b",
     amount: 200,
@@ -185,6 +201,8 @@ export const mockFlatJoinRowsCompositeFood2: CompositeFoodWithIngredientsJoinRow
   {
     id: MOCK_COMPOSITE_FOOD_ID_2,
     name: "composite-food-2",
+    cf_serving_size: 50,
+    cf_unit: "GRAM",
     ingredient_id: MOCK_INGREDIENT_ID_1,
     ingredient_name: "ingredient-a",
     amount: 50,

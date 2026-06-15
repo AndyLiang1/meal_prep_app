@@ -24,11 +24,10 @@ describe("Ingredients API", () => {
         protein: 1.3,
         carbs: 27,
         fats: 0.4,
-        serving_size: 100,
+        servingSize: 100,
         unit: "GRAM",
       });
       expect(res.body.id).toBeDefined();
-      expect(res.body.created_at).toBeDefined();
     });
 
     it("should reject non-positive servingSize", async () => {

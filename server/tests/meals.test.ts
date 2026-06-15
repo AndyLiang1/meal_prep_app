@@ -24,7 +24,7 @@ async function createCompositeFood(
 ) {
   const res = await request(app)
     .post("/api/composite-foods")
-    .send({ name, ingredients });
+    .send({ name, servingSize: 100, unit: "GRAM", ingredients });
   return res.body;
 }
 
@@ -128,7 +128,7 @@ describe("Meals API", () => {
       expect(res.body).toEqual([]);
     });
 
-    it("should return meals with derived macros", async () => {
+    it("should return meals with hydrated food objects", async () => {
       const egg = await createIngredient({
         name: "Egg",
         calories: 70,
@@ -155,8 +155,21 @@ describe("Meals API", () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(1);
-      expect(res.body[0].calories).toBe(270);
-      expect(res.body[0].protein).toBe(11);
+      expect(res.body[0].foods).toHaveLength(2);
+
+      const foodNames = res.body[0].foods
+        .map((food: { name: string }) => food.name)
+        .sort();
+      expect(foodNames).toEqual(["Egg", "Waffles"]);
+
+      const eggFood = res.body[0].foods.find(
+        (food: { name: string }) => food.name === "Egg",
+      );
+      const waffleFood = res.body[0].foods.find(
+        (food: { name: string }) => food.name === "Waffles",
+      );
+      expect(eggFood.calories).toBe(70);
+      expect(waffleFood.calories).toBe(200);
     });
   });
 
