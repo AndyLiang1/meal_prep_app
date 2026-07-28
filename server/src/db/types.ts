@@ -53,6 +53,7 @@ export interface Meal {
 }
 
 export interface MealFood {
+  amount: Numeric;
   composite_food_id: string | null;
   id: Generated<string>;
   ingredient_id: string | null;

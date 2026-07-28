@@ -4,6 +4,7 @@ const mealFoodSchema = z
   .object({
     ingredientId: z.uuid().optional(),
     compositeFoodId: z.uuid().optional(),
+    amount: z.number().positive(),
   })
   .refine(
     (data) => {

@@ -35,8 +35,12 @@ export interface TCompositeFood {
   ingredients: TCompositeFoodIngredient[];
 }
 
+export type TMealFood =
+  | (TIngredient & { amount: number })
+  | (TCompositeFood & { amount: number });
+
 export interface TMeal {
   id: string;
   name: string;
-  foods: (TIngredient | TCompositeFood)[];
+  foods: TMealFood[];
 }

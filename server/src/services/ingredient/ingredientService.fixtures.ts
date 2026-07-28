@@ -6,27 +6,7 @@ import { ingredientRowToTIngredient } from "./ingredientRowToTIngredient.js";
 export const MOCK_INGREDIENT_ID_1 = "ingredient-1-id";
 export const MOCK_INGREDIENT_ID_2 = "ingredient-2-id";
 
-export const mockExpectedTIngredient1: TIngredient = {
-  id: MOCK_INGREDIENT_ID_1,
-  name: mockCreateIngredientData.name,
-  calories: mockCreateIngredientData.calories,
-  protein: mockCreateIngredientData.protein,
-  carbs: mockCreateIngredientData.carbs,
-  fats: mockCreateIngredientData.fats,
-  servingSize: mockCreateIngredientData.servingSize,
-  unit: mockCreateIngredientData.unit,
-} as const;
-
-export const mockExpectedTIngredient2: TIngredient = {
-  id: MOCK_INGREDIENT_ID_2,
-  name: mockCreateIngredientData.name,
-  calories: mockCreateIngredientData.calories,
-  protein: mockCreateIngredientData.protein,
-  carbs: mockCreateIngredientData.carbs,
-  fats: mockCreateIngredientData.fats,
-  servingSize: mockCreateIngredientData.servingSize,
-  unit: mockCreateIngredientData.unit,
-} as const;
+// --- Mock database rows ---
 
 export const mockIngredientRow1: IngredientRow = {
   id: MOCK_INGREDIENT_ID_1,
@@ -52,4 +32,28 @@ export const mockIngredientRow2: IngredientRow = {
   unit: mockCreateIngredientData.unit,
   created_at: new Date("2026-04-23T12:00:00.000Z"),
   updated_at: new Date("2026-04-23T12:00:00.000Z"),
+} as const;
+
+// --- Expected transformed types ---
+
+export const mockExpectedTIngredient1: TIngredient = {
+  id: MOCK_INGREDIENT_ID_1,
+  name: mockCreateIngredientData.name,
+  calories: mockCreateIngredientData.calories,
+  protein: mockCreateIngredientData.protein,
+  carbs: mockCreateIngredientData.carbs,
+  fats: mockCreateIngredientData.fats,
+  servingSize: mockCreateIngredientData.servingSize,
+  unit: mockCreateIngredientData.unit,
+} as const;
+
+export const mockExpectedTIngredient2: TIngredient = {
+  id: MOCK_INGREDIENT_ID_2,
+  name: mockCreateIngredientData.name,
+  calories: mockCreateIngredientData.calories,
+  protein: mockCreateIngredientData.protein,
+  carbs: mockCreateIngredientData.carbs,
+  fats: mockCreateIngredientData.fats,
+  servingSize: mockCreateIngredientData.servingSize,
+  unit: mockCreateIngredientData.unit,
 } as const;

@@ -14,11 +14,13 @@ export interface MealFoodRow {
   meal_id: string;
   ingredient_id: string | null;
   composite_food_id: string | null;
+  amount: number;
 }
 
 export interface MealFoodRef {
   ingredientId?: string;
   compositeFoodId?: string;
+  amount: number;
 }
 
 export interface CreateMealData {
@@ -49,6 +51,7 @@ export const mealRepository = {
                 meal_id: insertedMeal.id,
                 ingredient_id: ref.ingredientId ?? null,
                 composite_food_id: ref.compositeFoodId ?? null,
+                amount: ref.amount,
               })),
             )
             .execute();

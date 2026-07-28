@@ -61,18 +61,17 @@ function computeMacros(rows: CompositeIngredientJoinRow[]) {
 }
 
 function formatIngredients(rows: CompositeIngredientJoinRow[]) {
-  const formatted = rows.map((r) => {
-    const scale = scaleFor(r);
+  const formatted = rows.map((row) => {
     const detail = {
-      ingredientId: r.ingredient_id,
-      name: r.name,
-      amount: r.amount,
-      unit: r.unit,
-      servingSize: r.serving_size,
-      calories: round2(r.calories * scale),
-      protein: round2(r.protein * scale),
-      carbs: round2(r.carbs * scale),
-      fats: round2(r.fats * scale),
+      ingredientId: row.ingredient_id,
+      name: row.name,
+      amount: row.amount,
+      unit: row.unit,
+      servingSize: row.serving_size,
+      calories: row.calories,
+      protein: row.protein,
+      carbs: row.carbs,
+      fats: row.fats,
     };
     return detail;
   });

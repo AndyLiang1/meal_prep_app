@@ -24,7 +24,7 @@ async function createMeal(name: string) {
     .post("/api/meals")
     .send({
       name,
-      foods: [{ ingredientId: ingredient.id }],
+      foods: [{ ingredientId: ingredient.id, amount: 100 }],
     });
   return res.body;
 }

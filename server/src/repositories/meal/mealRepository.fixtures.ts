@@ -14,7 +14,7 @@ export async function createTestMeal(
         name: `${mealName}-ingredient-${index}`,
       }),
     );
-    foods.push({ ingredientId: ingredientRow.id });
+    foods.push({ ingredientId: ingredientRow.id, amount: 100 });
   }
 
   const meal = await mealRepository.createWithFoods({

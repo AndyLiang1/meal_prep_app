@@ -43,7 +43,7 @@ describe("Meals API", () => {
         .post("/api/meals")
         .send({
           name: "Breakfast",
-          foods: [{ ingredientId: egg.id }],
+          foods: [{ ingredientId: egg.id, amount: 100 }],
         });
 
       expect(res.status).toBe(201);
@@ -61,7 +61,7 @@ describe("Meals API", () => {
         .post("/api/meals")
         .send({
           name: "Post-Workout",
-          foods: [{ compositeFoodId: shake.id }],
+          foods: [{ compositeFoodId: shake.id, amount: 100 }],
         });
 
       expect(res.status).toBe(201);
@@ -85,7 +85,10 @@ describe("Meals API", () => {
         .post("/api/meals")
         .send({
           name: "Breakfast",
-          foods: [{ ingredientId: waffle.id }, { compositeFoodId: shake.id }],
+          foods: [
+            { ingredientId: waffle.id, amount: 100 },
+            { compositeFoodId: shake.id, amount: 100 },
+          ],
         });
 
       expect(res.status).toBe(201);
@@ -101,6 +104,7 @@ describe("Meals API", () => {
             {
               ingredientId: "00000000-0000-0000-0000-000000000000",
               compositeFoodId: "00000000-0000-0000-0000-000000000000",
+              amount: 100,
             },
           ],
         });
@@ -148,7 +152,10 @@ describe("Meals API", () => {
         .post("/api/meals")
         .send({
           name: "Breakfast",
-          foods: [{ ingredientId: egg.id }, { ingredientId: waffle.id }],
+          foods: [
+            { ingredientId: egg.id, amount: 100 },
+            { ingredientId: waffle.id, amount: 100 },
+          ],
         });
 
       const res = await request(app).get("/api/meals");
@@ -187,7 +194,7 @@ describe("Meals API", () => {
         .post("/api/meals")
         .send({
           name: "Breakfast",
-          foods: [{ ingredientId: egg.id }],
+          foods: [{ ingredientId: egg.id, amount: 100 }],
         });
 
       const res = await request(app)
@@ -221,7 +228,7 @@ describe("Meals API", () => {
         .post("/api/meals")
         .send({
           name: "Breakfast",
-          foods: [{ ingredientId: egg.id }],
+          foods: [{ ingredientId: egg.id, amount: 100 }],
         });
 
       const res = await request(app).delete(`/api/meals/${created.body.id}`);

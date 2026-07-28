@@ -5,15 +5,26 @@ import {
   type MealRow,
   type MealFoodRow,
 } from "../../repositories/meal/mealRepository.js";
-import {
-  ingredientRepository,
-  type IngredientRow,
-} from "../../repositories/ingredient/ingredientRepository.js";
-import {
-  compositeFoodRepository,
-  type CompositeFoodWithIngredientsJoinRow,
-} from "../../repositories/compositeFood/compositeFoodRepository.js";
+import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
+import { compositeFoodRepository } from "../../repositories/compositeFood/compositeFoodRepository.js";
 import type { TMeal } from "../../types.js";
+import { MISSING_ID } from "../../constants.js";
+import {
+  mockIngredientRow1,
+  mockIngredientRow2,
+  mockExpectedTIngredient1,
+  mockExpectedTIngredient2,
+  MOCK_INGREDIENT_ID_1,
+  MOCK_INGREDIENT_ID_2,
+} from "../ingredient/ingredientService.fixtures.js";
+import {
+  MOCK_COMPOSITE_FOOD_ID_1,
+  MOCK_COMPOSITE_FOOD_ID_2,
+  mockFlatJoinRowsCompositeFood1,
+  mockFlatJoinRowsCompositeFood2,
+  mockExpectedTCompositeFood1,
+  mockExpectedTCompositeFood2,
+} from "../compositeFood/compositeFoodService.fixtures.js";
 
 vi.mock("../../repositories/meal/mealRepository.js", () => {
   return {
@@ -56,7 +67,7 @@ describe("mealService", () => {
   });
 
   describe("create", () => {
-    it("can create an empty meal", async () => {
+    it("should create an empty meal", async () => {
       const emptyMealRow: MealRow = {
         id: "meal-1-id",
         name: "Empty Meal",
@@ -64,10 +75,9 @@ describe("mealService", () => {
         updated_at: new Date("2026-06-01T12:00:00.000Z"),
       };
 
-      mockedMealRepo.createWithFoods.mockResolvedValue(emptyMealRow);
-      mockedMealRepo.findFoodsByMealId.mockResolvedValue([]);
       mockedIngredientRepo.findByIds.mockResolvedValue([]);
       mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
+      mockedMealRepo.createWithFoods.mockResolvedValue(emptyMealRow);
 
       const createdMeal: TMeal = await mealService.create({
         name: "Empty Meal",
@@ -75,23 +85,18 @@ describe("mealService", () => {
       });
 
       expect(createdMeal).toEqual({
-        id: "meal-1-id",
-        name: "Empty Meal",
+        id: emptyMealRow.id,
+        name: emptyMealRow.name,
         foods: [],
       });
       expect(mockedMealRepo.createWithFoods).toHaveBeenCalledWith({
         name: "Empty Meal",
         foods: [],
       });
-      expect(mockedMealRepo.findFoodsByMealId).toHaveBeenCalledWith("meal-1-id");
     });
 
-    it("can create a meal with an ingredient food and a composite food", async () => {
+    it("should create a meal with an ingredient food and a composite food", async () => {
       const MEAL_ID = "meal-2-id";
-      const INGREDIENT_ID = "ingredient-1-id";
-      const COMPOSITE_FOOD_ID = "composite-food-1-id";
-      const SUB_INGREDIENT_ID = "sub-ingredient-rice-id";
-
       const mixedMealRow: MealRow = {
         id: MEAL_ID,
         name: "Mixed Meal",
@@ -99,64 +104,17 @@ describe("mealService", () => {
         updated_at: new Date("2026-06-01T12:00:00.000Z"),
       };
 
-      const mealFoodRows: MealFoodRow[] = [
-        {
-          id: "meal-food-1",
-          meal_id: MEAL_ID,
-          ingredient_id: INGREDIENT_ID,
-          composite_food_id: null,
-        },
-        {
-          id: "meal-food-2",
-          meal_id: MEAL_ID,
-          ingredient_id: null,
-          composite_food_id: COMPOSITE_FOOD_ID,
-        },
-      ];
-
-      const chickenRow: IngredientRow = {
-        id: INGREDIENT_ID,
-        name: "Chicken Breast",
-        calories: 165,
-        protein: 31,
-        carbs: 0,
-        fats: 3.6,
-        serving_size: 100,
-        unit: "GRAM",
-        created_at: new Date("2026-06-01T12:00:00.000Z"),
-        updated_at: new Date("2026-06-01T12:00:00.000Z"),
-      };
-
-      const compositeFoodJoinRows: CompositeFoodWithIngredientsJoinRow[] = [
-        {
-          id: COMPOSITE_FOOD_ID,
-          name: "Protein Bowl",
-          cf_serving_size: 250,
-          cf_unit: "GRAM",
-          ingredient_id: SUB_INGREDIENT_ID,
-          ingredient_name: "Rice",
-          calories: 130,
-          protein: 2.7,
-          carbs: 28,
-          fats: 0.3,
-          amount: 150,
-          serving_size: 100,
-          unit: "GRAM",
-        },
-      ];
-
-      mockedMealRepo.createWithFoods.mockResolvedValue(mixedMealRow);
-      mockedMealRepo.findFoodsByMealId.mockResolvedValue(mealFoodRows);
-      mockedIngredientRepo.findByIds.mockResolvedValue([chickenRow]);
+      mockedIngredientRepo.findByIds.mockResolvedValue([mockIngredientRow1]);
       mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue(
-        compositeFoodJoinRows,
+        mockFlatJoinRowsCompositeFood1,
       );
+      mockedMealRepo.createWithFoods.mockResolvedValue(mixedMealRow);
 
       const createdMeal: TMeal = await mealService.create({
         name: "Mixed Meal",
         foods: [
-          { ingredientId: INGREDIENT_ID },
-          { compositeFoodId: COMPOSITE_FOOD_ID },
+          { ingredientId: MOCK_INGREDIENT_ID_1, amount: 150 },
+          { compositeFoodId: MOCK_COMPOSITE_FOOD_ID_1, amount: 600 },
         ],
       });
 
@@ -164,57 +122,42 @@ describe("mealService", () => {
         id: MEAL_ID,
         name: "Mixed Meal",
         foods: [
-          {
-            id: INGREDIENT_ID,
-            name: "Chicken Breast",
-            calories: 165,
-            protein: 31,
-            carbs: 0,
-            fats: 3.6,
-            servingSize: 100,
-            unit: "GRAM",
-          },
-          {
-            id: COMPOSITE_FOOD_ID,
-            name: "Protein Bowl",
-            calories: 195,
-            protein: 4.05,
-            carbs: 42,
-            fats: 0.45,
-            servingSize: 250,
-            unit: "GRAM",
-            ingredients: [
-              {
-                ingredientId: SUB_INGREDIENT_ID,
-                name: "Rice",
-                calories: 130,
-                protein: 2.7,
-                carbs: 28,
-                fats: 0.3,
-                amount: 150,
-                unit: "GRAM",
-                servingSize: 100,
-              },
-            ],
-          },
+          { ...mockExpectedTIngredient1, amount: 150 },
+          { ...mockExpectedTCompositeFood1, amount: 600 },
         ],
       });
       expect(mockedMealRepo.createWithFoods).toHaveBeenCalledWith({
         name: "Mixed Meal",
         foods: [
-          { ingredientId: INGREDIENT_ID },
-          { compositeFoodId: COMPOSITE_FOOD_ID },
+          { ingredientId: MOCK_INGREDIENT_ID_1, amount: 150 },
+          { compositeFoodId: MOCK_COMPOSITE_FOOD_ID_1, amount: 600 },
         ],
       });
-      expect(mockedIngredientRepo.findByIds).toHaveBeenCalledWith([INGREDIENT_ID]);
-      expect(mockedCompositeFoodRepo.findByIdsWithIngredients).toHaveBeenCalledWith([
-        COMPOSITE_FOOD_ID,
+      expect(mockedIngredientRepo.findByIds).toHaveBeenCalledWith([
+        MOCK_INGREDIENT_ID_1,
       ]);
+      expect(mockedCompositeFoodRepo.findByIdsWithIngredients).toHaveBeenCalledWith([
+        MOCK_COMPOSITE_FOOD_ID_1,
+      ]);
+    });
+
+    it("should throw when a meal food id does not exist", async () => {
+      mockedIngredientRepo.findByIds.mockResolvedValue([]);
+      mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
+
+      await expect(
+        mealService.create({
+          name: "Bad Meal",
+          foods: [{ ingredientId: MISSING_ID, amount: 100 }],
+        }),
+      ).rejects.toThrow("One or more meal foods not found");
+
+      expect(mockedMealRepo.createWithFoods).not.toHaveBeenCalled();
     });
   });
 
   describe("list", () => {
-    it("returns an empty array when no meals exist", async () => {
+    it("should return an empty array when no meals exist", async () => {
       mockedMealRepo.findAll.mockResolvedValue([]);
       mockedMealRepo.findFoodsByMealIds.mockResolvedValue([]);
       mockedIngredientRepo.findByIds.mockResolvedValue([]);
@@ -225,40 +168,25 @@ describe("mealService", () => {
       expect(meals).toEqual([]);
     });
 
-    it("returns each meal with its expanded foods", async () => {
+    it("should return a meal with a single ingredient food", async () => {
       const MEAL_ID = "meal-list-1";
-      const INGREDIENT_ID = "ing-list-1";
-
       const mealRow: MealRow = {
         id: MEAL_ID,
-        name: "Lunch",
+        name: "Snack",
         created_at: new Date("2026-06-01T12:00:00.000Z"),
         updated_at: new Date("2026-06-01T12:00:00.000Z"),
       };
-
       const mealFoodRow: MealFoodRow = {
-        id: "mf-1",
+        id: "meal-food-1",
         meal_id: MEAL_ID,
-        ingredient_id: INGREDIENT_ID,
+        ingredient_id: MOCK_INGREDIENT_ID_1,
         composite_food_id: null,
-      };
-
-      const ingredientRow: IngredientRow = {
-        id: INGREDIENT_ID,
-        name: "Eggs",
-        calories: 155,
-        protein: 13,
-        carbs: 1.1,
-        fats: 11,
-        serving_size: 100,
-        unit: "GRAM",
-        created_at: new Date("2026-06-01T12:00:00.000Z"),
-        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+        amount: 150,
       };
 
       mockedMealRepo.findAll.mockResolvedValue([mealRow]);
       mockedMealRepo.findFoodsByMealIds.mockResolvedValue([mealFoodRow]);
-      mockedIngredientRepo.findByIds.mockResolvedValue([ingredientRow]);
+      mockedIngredientRepo.findByIds.mockResolvedValue([mockIngredientRow1]);
       mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
 
       const meals = await mealService.list();
@@ -266,18 +194,107 @@ describe("mealService", () => {
       expect(meals).toEqual([
         {
           id: MEAL_ID,
+          name: "Snack",
+          foods: [{ ...mockExpectedTIngredient1, amount: 150 }],
+        },
+      ]);
+    });
+
+    it("should return a meal with a single composite food", async () => {
+      const MEAL_ID = "meal-list-2";
+      const mealRow: MealRow = {
+        id: MEAL_ID,
+        name: "Lunch",
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const mealFoodRow: MealFoodRow = {
+        id: "meal-food-2",
+        meal_id: MEAL_ID,
+        ingredient_id: null,
+        composite_food_id: MOCK_COMPOSITE_FOOD_ID_1,
+        amount: 300,
+      };
+
+      mockedMealRepo.findAll.mockResolvedValue([mealRow]);
+      mockedMealRepo.findFoodsByMealIds.mockResolvedValue([mealFoodRow]);
+      mockedIngredientRepo.findByIds.mockResolvedValue([]);
+      mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue(
+        mockFlatJoinRowsCompositeFood1,
+      );
+
+      const meals = await mealService.list();
+
+      expect(meals).toEqual([
+        {
+          id: MEAL_ID,
           name: "Lunch",
+          foods: [{ ...mockExpectedTCompositeFood1, amount: 300 }],
+        },
+      ]);
+    });
+
+    it("should return a meal with multiple ingredients and composite foods", async () => {
+      const MEAL_ID = "meal-list-3";
+      const mealRow: MealRow = {
+        id: MEAL_ID,
+        name: "Dinner",
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const mealFoodRows: MealFoodRow[] = [
+        {
+          id: "meal-food-3",
+          meal_id: MEAL_ID,
+          ingredient_id: MOCK_INGREDIENT_ID_1,
+          composite_food_id: null,
+          amount: 200,
+        },
+        {
+          id: "meal-food-4",
+          meal_id: MEAL_ID,
+          ingredient_id: MOCK_INGREDIENT_ID_2,
+          composite_food_id: null,
+          amount: 50,
+        },
+        {
+          id: "meal-food-5",
+          meal_id: MEAL_ID,
+          ingredient_id: null,
+          composite_food_id: MOCK_COMPOSITE_FOOD_ID_1,
+          amount: 300,
+        },
+        {
+          id: "meal-food-6",
+          meal_id: MEAL_ID,
+          ingredient_id: null,
+          composite_food_id: MOCK_COMPOSITE_FOOD_ID_2,
+          amount: 100,
+        },
+      ];
+
+      mockedMealRepo.findAll.mockResolvedValue([mealRow]);
+      mockedMealRepo.findFoodsByMealIds.mockResolvedValue(mealFoodRows);
+      mockedIngredientRepo.findByIds.mockResolvedValue([
+        mockIngredientRow1,
+        mockIngredientRow2,
+      ]);
+      mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([
+        ...mockFlatJoinRowsCompositeFood1,
+        ...mockFlatJoinRowsCompositeFood2,
+      ]);
+
+      const meals = await mealService.list();
+
+      expect(meals).toEqual([
+        {
+          id: MEAL_ID,
+          name: "Dinner",
           foods: [
-            {
-              id: INGREDIENT_ID,
-              name: "Eggs",
-              calories: 155,
-              protein: 13,
-              carbs: 1.1,
-              fats: 11,
-              servingSize: 100,
-              unit: "GRAM",
-            },
+            { ...mockExpectedTIngredient1, amount: 200 },
+            { ...mockExpectedTIngredient2, amount: 50 },
+            { ...mockExpectedTCompositeFood1, amount: 300 },
+            { ...mockExpectedTCompositeFood2, amount: 100 },
           ],
         },
       ]);
@@ -295,11 +312,11 @@ describe("mealService", () => {
       expect(updatedMeal).toBeNull();
     });
 
-    it("returns the updated meal with foods on success", async () => {
+    it("returns the renamed meal when only the name is updated", async () => {
       const MEAL_ID = "meal-update-1";
       const updatedRow: MealRow = {
         id: MEAL_ID,
-        name: "Updated Meal",
+        name: "Updated Meal Name",
         created_at: new Date("2026-06-01T12:00:00.000Z"),
         updated_at: new Date("2026-06-02T12:00:00.000Z"),
       };
@@ -313,7 +330,7 @@ describe("mealService", () => {
 
       expect(updatedMeal).toEqual({
         id: MEAL_ID,
-        name: "Updated Meal",
+        name: "Updated Meal Name",
         foods: [],
       });
     });

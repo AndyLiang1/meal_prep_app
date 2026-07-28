@@ -17,6 +17,7 @@ import type {
   TCompositeFood,
   TCompositeFoodIngredient,
   TMeal,
+  TMealFood,
 } from "../../types.js";
 
 function round2(value: number): number {
@@ -92,6 +93,10 @@ interface FoodCatalog {
   compositeFoodMap: Map<string, CompositeFoodWithIngredientsJoinRow[]>;
 }
 
+/**
+ * Grabs all the ingredient and composite food rows for this meal and returns
+ * a map of them by id.
+ */
 async function fetchFoodCatalog(mealFoodRows: MealFoodRow[]): Promise<FoodCatalog> {
   const ingredientIds = mealFoodRows
     .filter((foodRow) => foodRow.ingredient_id !== null)
@@ -118,23 +123,48 @@ async function fetchFoodCatalog(mealFoodRows: MealFoodRow[]): Promise<FoodCatalo
   return { ingredientMap, compositeFoodMap };
 }
 
-function assembleFoods(
+function toMealFoodFromIngredient(
+  ingredientRow: IngredientRow,
+  amount: number,
+): TMealFood {
+  const ingredient = toIngredient(ingredientRow);
+  const mealFood: TMealFood = { ...ingredient, amount };
+  return mealFood;
+}
+
+function toMealFoodFromCompositeFood(
+  compositeFoodId: string,
+  joinRows: CompositeFoodWithIngredientsJoinRow[],
+  amount: number,
+): TMealFood {
+  const compositeFood = toCompositeFood(compositeFoodId, joinRows);
+  const mealFood: TMealFood = { ...compositeFood, amount };
+  return mealFood;
+}
+
+function assembleMealFoodsFromCatalog(
   mealFoodRows: MealFoodRow[],
   catalog: FoodCatalog,
-): (TIngredient | TCompositeFood)[] {
-  const foods: (TIngredient | TCompositeFood)[] = [];
+): TMealFood[] {
+  const foods: TMealFood[] = [];
 
   for (const mealFoodRow of mealFoodRows) {
     if (mealFoodRow.ingredient_id) {
       const ingredientRow = catalog.ingredientMap.get(mealFoodRow.ingredient_id);
       if (!ingredientRow) continue;
-      foods.push(toIngredient(ingredientRow));
+      const mealFood = toMealFoodFromIngredient(ingredientRow, mealFoodRow.amount);
+      foods.push(mealFood);
     }
 
     if (mealFoodRow.composite_food_id) {
       const joinRows = catalog.compositeFoodMap.get(mealFoodRow.composite_food_id);
       if (!joinRows || joinRows.length === 0) continue;
-      foods.push(toCompositeFood(mealFoodRow.composite_food_id, joinRows));
+      const mealFood = toMealFoodFromCompositeFood(
+        mealFoodRow.composite_food_id,
+        joinRows,
+        mealFoodRow.amount,
+      );
+      foods.push(mealFood);
     }
   }
 
@@ -142,15 +172,44 @@ function assembleFoods(
 }
 
 export const mealService = {
-  async create(input: CreateMealData): Promise<TMeal> {
-    const mealRecord = await mealRepository.createWithFoods(input);
-    const mealFoodRows = await mealRepository.findFoodsByMealId(mealRecord.id);
-    const catalog = await fetchFoodCatalog(mealFoodRows);
-    const foods = assembleFoods(mealFoodRows, catalog);
+  async create(createMealData: CreateMealData): Promise<TMeal> {
+    const mealFoodRows: MealFoodRow[] = createMealData.foods.map((foodRef) => ({
+      id: "",
+      meal_id: "",
+      ingredient_id: foodRef.ingredientId ?? null,
+      composite_food_id: foodRef.compositeFoodId ?? null,
+      amount: foodRef.amount,
+    }));
+    const foodCatalog = await fetchFoodCatalog(mealFoodRows);
+
+    const uniqueIngredientIds = [
+      ...new Set(
+        createMealData.foods
+          .filter((foodRef) => foodRef.ingredientId)
+          .map((foodRef) => foodRef.ingredientId!),
+      ),
+    ];
+    const uniqueCompositeFoodIds = [
+      ...new Set(
+        createMealData.foods
+          .filter((foodRef) => foodRef.compositeFoodId)
+          .map((foodRef) => foodRef.compositeFoodId!),
+      ),
+    ];
+
+    if (
+      foodCatalog.ingredientMap.size !== uniqueIngredientIds.length ||
+      foodCatalog.compositeFoodMap.size !== uniqueCompositeFoodIds.length
+    ) {
+      throw new Error("One or more meal foods not found");
+    }
+
+    const mealRecord = await mealRepository.createWithFoods(createMealData);
+    const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
     const createdMeal: TMeal = {
       id: mealRecord.id,
       name: mealRecord.name,
-      foods,
+      foods: mealFoods,
     };
     return createdMeal;
   },
@@ -171,7 +230,7 @@ export const mealService = {
 
     const meals: TMeal[] = mealRows.map((mealRow) => {
       const mealFoodRowsForMeal = mealFoodRowsByMealId.get(mealRow.id) ?? [];
-      const foods = assembleFoods(mealFoodRowsForMeal, catalog);
+      const foods = assembleMealFoodsFromCatalog(mealFoodRowsForMeal, catalog);
       const meal: TMeal = {
         id: mealRow.id,
         name: mealRow.name,
@@ -188,7 +247,7 @@ export const mealService = {
 
     const mealFoodRows = await mealRepository.findFoodsByMealId(updatedRecord.id);
     const catalog = await fetchFoodCatalog(mealFoodRows);
-    const foods = assembleFoods(mealFoodRows, catalog);
+    const foods = assembleMealFoodsFromCatalog(mealFoodRows, catalog);
     const updatedMeal: TMeal = {
       id: updatedRecord.id,
       name: updatedRecord.name,
