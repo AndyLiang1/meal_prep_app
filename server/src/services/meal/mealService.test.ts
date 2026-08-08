@@ -419,12 +419,15 @@ describe("mealService", () => {
   });
 
   describe("delete", () => {
+    // Service only deletes the meal row; meal_food cleanup is DB cascade (see repo test).
     it("returns true when the repository deletes the row", async () => {
+      const MEAL_ID = "meal-del-1";
       mockedMealRepo.delete.mockResolvedValue(true);
 
-      const deleted = await mealService.delete("meal-del-1");
+      const deleted = await mealService.delete(MEAL_ID);
 
       expect(deleted).toBe(true);
+      expect(mockedMealRepo.delete).toHaveBeenCalledWith(MEAL_ID);
     });
 
     it("returns false when the repository did not delete", async () => {

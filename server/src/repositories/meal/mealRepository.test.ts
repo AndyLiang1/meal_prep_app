@@ -281,6 +281,28 @@ describe("mealRepository", () => {
       expect(await mealRepository.findById(persistedMeal.id)).toBeNull();
     });
 
+    it("deletes meal_food rows for ingredient and composite foods", async () => {
+      const ingredient = await createIngredientRow("ingredient-delete");
+      const compositeFood = await createTestCompositeFood("composite-food-delete");
+
+      const meal = await mealRepository.createWithFoods({
+        name: "meal-delete-foods",
+        foods: [
+          { ingredientId: ingredient.id, amount: 100 },
+          { compositeFoodId: compositeFood.id, amount: 300 },
+        ],
+      });
+
+      const mealFoodRowsBeforeDelete = await mealRepository.findFoodsByMealId(meal.id);
+      expect(mealFoodRowsBeforeDelete).toHaveLength(2);
+
+      const deleted = await mealRepository.delete(meal.id);
+      expect(deleted).toBe(true);
+
+      const mealFoodRowsAfterDelete = await mealRepository.findFoodsByMealId(meal.id);
+      expect(mealFoodRowsAfterDelete).toEqual([]);
+    });
+
     it("returns false when the row does not exist", async () => {
       const deleted = await mealRepository.delete(MISSING_ID);
       expect(deleted).toBe(false);
