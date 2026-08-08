@@ -205,6 +205,62 @@ describe("Meals API", () => {
       expect(res.body.name).toBe("Morning Meal");
     });
 
+    it("should replace a meal's foods and name", async () => {
+      const originalIngredient = await createIngredient({ name: "Egg" });
+      const replacementIngredient = await createIngredient({ name: "Waffle" });
+      const originalCompositeFood = await createCompositeFood("Original Shake", [
+        { ingredientId: originalIngredient.id, amount: 100 },
+      ]);
+      const replacementCompositeFood = await createCompositeFood("Replacement Shake", [
+        { ingredientId: replacementIngredient.id, amount: 100 },
+      ]);
+
+      const created = await request(app)
+        .post("/api/meals")
+        .send({
+          name: "Breakfast",
+          foods: [
+            { ingredientId: originalIngredient.id, amount: 100 },
+            { compositeFoodId: originalCompositeFood.id, amount: 300 },
+          ],
+        });
+
+      const updateResponse = await request(app)
+        .patch(`/api/meals/${created.body.id}`)
+        .send({
+          name: "Renamed Meal",
+          foods: [
+            { ingredientId: replacementIngredient.id, amount: 250 },
+            { compositeFoodId: replacementCompositeFood.id, amount: 75 },
+          ],
+        });
+
+      expect(updateResponse.status).toBe(200);
+      expect(updateResponse.body).toEqual({
+        id: created.body.id,
+        name: "Renamed Meal",
+        foods: [
+          expect.objectContaining({
+            id: replacementIngredient.id,
+            name: "Waffle",
+            amount: 250,
+          }),
+          expect.objectContaining({
+            id: replacementCompositeFood.id,
+            name: "Replacement Shake",
+            amount: 75,
+          }),
+        ],
+      });
+
+      const listResponse = await request(app).get("/api/meals");
+      const persistedMeal = listResponse.body.find(
+        (meal: { id: string }) => meal.id === created.body.id,
+      );
+
+      expect(persistedMeal).toEqual(updateResponse.body);
+    });
+
     it("should return 404 for non-existent meal", async () => {
       const res = await request(app)
         .patch("/api/meals/00000000-0000-0000-0000-000000000000")

@@ -36,6 +36,7 @@ vi.mock("../../repositories/meal/mealRepository.js", () => {
       findFoodsByMealId: vi.fn(),
       findFoodsByMealIds: vi.fn(),
       update: vi.fn(),
+      replaceFoods: vi.fn(),
       delete: vi.fn(),
     },
   };
@@ -303,7 +304,7 @@ describe("mealService", () => {
 
   describe("update", () => {
     it("returns null when the meal does not exist", async () => {
-      mockedMealRepo.update.mockResolvedValue(null);
+      mockedMealRepo.findById.mockResolvedValue(null);
 
       const updatedMeal = await mealService.update("non-existent-id", {
         name: "New Name",
@@ -314,6 +315,12 @@ describe("mealService", () => {
 
     it("returns the renamed meal when only the name is updated", async () => {
       const MEAL_ID = "meal-update-1";
+      const existingRow: MealRow = {
+        id: MEAL_ID,
+        name: "Original Name",
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
       const updatedRow: MealRow = {
         id: MEAL_ID,
         name: "Updated Meal Name",
@@ -321,18 +328,93 @@ describe("mealService", () => {
         updated_at: new Date("2026-06-02T12:00:00.000Z"),
       };
 
+      mockedMealRepo.findById.mockResolvedValue(existingRow);
       mockedMealRepo.update.mockResolvedValue(updatedRow);
       mockedMealRepo.findFoodsByMealId.mockResolvedValue([]);
       mockedIngredientRepo.findByIds.mockResolvedValue([]);
       mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
 
-      const updatedMeal = await mealService.update(MEAL_ID, { name: "Updated Meal" });
+      const updatedMeal = await mealService.update(MEAL_ID, {
+        name: "Updated Meal Name",
+      });
 
       expect(updatedMeal).toEqual({
         id: MEAL_ID,
         name: "Updated Meal Name",
         foods: [],
       });
+    });
+
+    // Only checks that replaceFoods is called and the response is correct.
+    // Old foods being deleted is verified in integration/repo tests.
+    it("replaces the meal's foods and name", async () => {
+      const MEAL_ID = "meal-update-2";
+      const existingRow: MealRow = {
+        id: MEAL_ID,
+        name: "Original Name",
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const updatedMealRow: MealRow = {
+        id: MEAL_ID,
+        name: "Renamed Meal",
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-02T12:00:00.000Z"),
+      };
+
+      mockedMealRepo.findById.mockResolvedValue(existingRow);
+      mockedMealRepo.update.mockResolvedValue(updatedMealRow);
+      mockedMealRepo.replaceFoods.mockResolvedValue([]);
+      mockedIngredientRepo.findByIds.mockResolvedValue([mockIngredientRow2]);
+      mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue(
+        mockFlatJoinRowsCompositeFood2,
+      );
+
+      const updatedMeal = await mealService.update(MEAL_ID, {
+        name: "Renamed Meal",
+        foods: [
+          { ingredientId: MOCK_INGREDIENT_ID_2, amount: 250 },
+          { compositeFoodId: MOCK_COMPOSITE_FOOD_ID_2, amount: 75 },
+        ],
+      });
+
+      expect(mockedMealRepo.replaceFoods).toHaveBeenCalledWith(MEAL_ID, [
+        { ingredientId: MOCK_INGREDIENT_ID_2, amount: 250 },
+        { compositeFoodId: MOCK_COMPOSITE_FOOD_ID_2, amount: 75 },
+      ]);
+
+      expect(updatedMeal).toEqual({
+        id: MEAL_ID,
+        name: "Renamed Meal",
+        foods: [
+          { ...mockExpectedTIngredient2, amount: 250 },
+          { ...mockExpectedTCompositeFood2, amount: 75 },
+        ],
+      });
+    });
+
+    it("does not rename the meal when food ids are invalid", async () => {
+      const MEAL_ID = "meal-update-partial";
+      const existingRow: MealRow = {
+        id: MEAL_ID,
+        name: "Original Name",
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+
+      mockedMealRepo.findById.mockResolvedValue(existingRow);
+      mockedIngredientRepo.findByIds.mockResolvedValue([]);
+      mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
+
+      await expect(
+        mealService.update(MEAL_ID, {
+          name: "Renamed Meal",
+          foods: [{ ingredientId: MISSING_ID, amount: 100 }],
+        }),
+      ).rejects.toThrow("One or more meal foods not found");
+
+      expect(mockedMealRepo.update).not.toHaveBeenCalled();
+      expect(mockedMealRepo.replaceFoods).not.toHaveBeenCalled();
     });
   });
 

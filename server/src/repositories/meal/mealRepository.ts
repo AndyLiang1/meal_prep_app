@@ -30,6 +30,7 @@ export interface CreateMealData {
 
 export interface UpdateMealData {
   name?: string;
+  foods?: MealFoodRef[];
 }
 
 export const mealRepository = {
@@ -110,14 +111,49 @@ export const mealRepository = {
     return rows;
   },
 
-  async update(id: string, data: UpdateMealData): Promise<MealRow | null> {
+  async update(id: string, data: { name?: string } = {}): Promise<MealRow | null> {
+    const setValues: { updated_at: Date; name?: string } = { updated_at: new Date() };
+    if (data.name !== undefined) {
+      setValues.name = data.name;
+    }
+
     const row = await getDb()
       .updateTable("meal")
-      .set({ ...data, updated_at: new Date() })
+      .set(setValues)
       .where("id", "=", id)
       .returningAll()
       .executeTakeFirst();
     return row ?? null;
+  },
+
+  async replaceFoods(mealId: string, foods: MealFoodRef[]): Promise<MealFoodRow[]> {
+    const mealFoodRows = await getDb()
+      .transaction()
+      .execute(async (transaction) => {
+        await transaction
+          .deleteFrom("meal_food")
+          .where("meal_id", "=", mealId)
+          .execute();
+
+        if (foods.length === 0) {
+          return [];
+        }
+
+        const insertedMealFoodRows = await transaction
+          .insertInto("meal_food")
+          .values(
+            foods.map((foodRef) => ({
+              meal_id: mealId,
+              ingredient_id: foodRef.ingredientId ?? null,
+              composite_food_id: foodRef.compositeFoodId ?? null,
+              amount: foodRef.amount,
+            })),
+          )
+          .returningAll()
+          .execute();
+        return insertedMealFoodRows;
+      });
+    return mealFoodRows;
   },
 
   async delete(id: string): Promise<boolean> {

@@ -3,6 +3,7 @@ import {
   type CreateMealData,
   type UpdateMealData,
   type MealFoodRow,
+  type MealFoodRef,
 } from "../../repositories/meal/mealRepository.js";
 import {
   ingredientRepository,
@@ -171,38 +172,49 @@ function assembleMealFoodsFromCatalog(
   return foods;
 }
 
+function refsToMealFoodRows(foodRefs: MealFoodRef[]): MealFoodRow[] {
+  const mealFoodRows = foodRefs.map((foodRef) => ({
+    id: "",
+    meal_id: "",
+    ingredient_id: foodRef.ingredientId ?? null,
+    composite_food_id: foodRef.compositeFoodId ?? null,
+    amount: foodRef.amount,
+  }));
+  return mealFoodRows;
+}
+
+function assertMealFoodRefsExist(
+  foodRefs: MealFoodRef[],
+  foodCatalog: FoodCatalog,
+): void {
+  const uniqueIngredientIds = [
+    ...new Set(
+      foodRefs
+        .filter((foodRef) => foodRef.ingredientId)
+        .map((foodRef) => foodRef.ingredientId!),
+    ),
+  ];
+  const uniqueCompositeFoodIds = [
+    ...new Set(
+      foodRefs
+        .filter((foodRef) => foodRef.compositeFoodId)
+        .map((foodRef) => foodRef.compositeFoodId!),
+    ),
+  ];
+
+  if (
+    foodCatalog.ingredientMap.size !== uniqueIngredientIds.length ||
+    foodCatalog.compositeFoodMap.size !== uniqueCompositeFoodIds.length
+  ) {
+    throw new Error("One or more meal foods not found");
+  }
+}
+
 export const mealService = {
   async create(createMealData: CreateMealData): Promise<TMeal> {
-    const mealFoodRows: MealFoodRow[] = createMealData.foods.map((foodRef) => ({
-      id: "",
-      meal_id: "",
-      ingredient_id: foodRef.ingredientId ?? null,
-      composite_food_id: foodRef.compositeFoodId ?? null,
-      amount: foodRef.amount,
-    }));
+    const mealFoodRows = refsToMealFoodRows(createMealData.foods);
     const foodCatalog = await fetchFoodCatalog(mealFoodRows);
-
-    const uniqueIngredientIds = [
-      ...new Set(
-        createMealData.foods
-          .filter((foodRef) => foodRef.ingredientId)
-          .map((foodRef) => foodRef.ingredientId!),
-      ),
-    ];
-    const uniqueCompositeFoodIds = [
-      ...new Set(
-        createMealData.foods
-          .filter((foodRef) => foodRef.compositeFoodId)
-          .map((foodRef) => foodRef.compositeFoodId!),
-      ),
-    ];
-
-    if (
-      foodCatalog.ingredientMap.size !== uniqueIngredientIds.length ||
-      foodCatalog.compositeFoodMap.size !== uniqueCompositeFoodIds.length
-    ) {
-      throw new Error("One or more meal foods not found");
-    }
+    assertMealFoodRefsExist(createMealData.foods, foodCatalog);
 
     const mealRecord = await mealRepository.createWithFoods(createMealData);
     const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
@@ -242,16 +254,37 @@ export const mealService = {
   },
 
   async update(id: string, input: UpdateMealData): Promise<TMeal | null> {
-    const updatedRecord = await mealRepository.update(id, input);
-    if (!updatedRecord) return null;
+    const existingMeal = await mealRepository.findById(id);
+    if (!existingMeal) return null;
 
-    const mealFoodRows = await mealRepository.findFoodsByMealId(updatedRecord.id);
-    const catalog = await fetchFoodCatalog(mealFoodRows);
-    const foods = assembleMealFoodsFromCatalog(mealFoodRows, catalog);
+    if (input.foods !== undefined) {
+      const mealFoodRows = refsToMealFoodRows(input.foods);
+      const foodCatalog = await fetchFoodCatalog(mealFoodRows);
+      assertMealFoodRefsExist(input.foods, foodCatalog);
+      await mealRepository.replaceFoods(id, input.foods);
+
+      const updatedMealRecord = await mealRepository.update(id, { name: input.name });
+      const mealRecord = updatedMealRecord!;
+
+      const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
+      const updatedMeal: TMeal = {
+        id: mealRecord.id,
+        name: mealRecord.name,
+        foods: mealFoods,
+      };
+      return updatedMeal;
+    }
+
+    const updatedMealRecord = await mealRepository.update(id, { name: input.name });
+    const mealRecord = updatedMealRecord!;
+
+    const mealFoodRows = await mealRepository.findFoodsByMealId(mealRecord.id);
+    const foodCatalog = await fetchFoodCatalog(mealFoodRows);
+    const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
     const updatedMeal: TMeal = {
-      id: updatedRecord.id,
-      name: updatedRecord.name,
-      foods,
+      id: mealRecord.id,
+      name: mealRecord.name,
+      foods: mealFoods,
     };
     return updatedMeal;
   },

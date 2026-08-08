@@ -22,9 +22,14 @@ export const createMealSchema = z.object({
   foods: z.array(mealFoodSchema).min(1),
 });
 
-export const updateMealSchema = z.object({
-  name: z.string().min(1).optional(),
-});
+export const updateMealSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    foods: z.array(mealFoodSchema).min(1).optional(),
+  })
+  .refine((data) => data.name !== undefined || data.foods !== undefined, {
+    message: "At least one of name or foods must be provided",
+  });
 
 export const idParamSchema = z.object({
   id: z.uuid(),

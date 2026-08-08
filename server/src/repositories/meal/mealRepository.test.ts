@@ -36,7 +36,10 @@ describe("mealRepository", () => {
 
       const meal = await mealRepository.createWithFoods({
         name: "meal-breakfast",
-        foods: [{ ingredientId: ingredient1.id }, { ingredientId: ingredient2.id }],
+        foods: [
+          { ingredientId: ingredient1.id, amount: 100 },
+          { ingredientId: ingredient2.id, amount: 100 },
+        ],
       });
 
       const mealFoods = await mealRepository.findFoodsByMealId(meal.id);
@@ -55,7 +58,7 @@ describe("mealRepository", () => {
 
       const meal = await mealRepository.createWithFoods({
         name: "meal-post-workout",
-        foods: [{ compositeFoodId: compositeFoodProteinShake.id }],
+        foods: [{ compositeFoodId: compositeFoodProteinShake.id, amount: 100 }],
       });
 
       const mealFoods = await mealRepository.findFoodsByMealId(meal.id);
@@ -65,6 +68,7 @@ describe("mealRepository", () => {
         meal_id: meal.id,
         ingredient_id: null,
         composite_food_id: compositeFoodProteinShake.id,
+        amount: 100,
       });
     });
 
@@ -75,8 +79,8 @@ describe("mealRepository", () => {
       const meal = await mealRepository.createWithFoods({
         name: "meal-mixed",
         foods: [
-          { ingredientId: ingredientEgg.id },
-          { compositeFoodId: compositeFoodShake.id },
+          { ingredientId: ingredientEgg.id, amount: 100 },
+          { compositeFoodId: compositeFoodShake.id, amount: 200 },
         ],
       });
 
@@ -95,7 +99,7 @@ describe("mealRepository", () => {
       await expect(
         mealRepository.createWithFoods({
           name: "meal-bad-fk",
-          foods: [{ ingredientId: MISSING_ID }],
+          foods: [{ ingredientId: MISSING_ID, amount: 100 }],
         }),
       ).rejects.toThrow();
 
@@ -165,13 +169,13 @@ describe("mealRepository", () => {
 
       const mealWithOneFood = await mealRepository.createWithFoods({
         name: "meal-one-food",
-        foods: [{ ingredientId: sharedIngredient.id }],
+        foods: [{ ingredientId: sharedIngredient.id, amount: 100 }],
       });
       const mealWithTwoFoods = await mealRepository.createWithFoods({
         name: "meal-two-foods",
         foods: [
-          { ingredientId: sharedIngredient.id },
-          { ingredientId: sharedIngredient.id },
+          { ingredientId: sharedIngredient.id, amount: 100 },
+          { ingredientId: sharedIngredient.id, amount: 150 },
         ],
       });
 
@@ -221,6 +225,50 @@ describe("mealRepository", () => {
         name: "meal-ghost",
       });
       expect(result).toBeNull();
+    });
+  });
+
+  describe("replaceFoods", () => {
+    it("replaces ingredient and composite foods on a meal", async () => {
+      const originalIngredient = await createIngredientRow("ingredient-original");
+      const replacementIngredient = await createIngredientRow("ingredient-replacement");
+      const originalCompositeFood = await createTestCompositeFood(
+        "composite-food-original",
+      );
+      const replacementCompositeFood = await createTestCompositeFood(
+        "composite-food-replacement",
+      );
+
+      const meal = await mealRepository.createWithFoods({
+        name: "meal-replace-foods",
+        foods: [
+          { ingredientId: originalIngredient.id, amount: 100 },
+          { compositeFoodId: originalCompositeFood.id, amount: 300 },
+        ],
+      });
+
+      const replacedMealFoodRows = await mealRepository.replaceFoods(meal.id, [
+        { ingredientId: replacementIngredient.id, amount: 250 },
+        { compositeFoodId: replacementCompositeFood.id, amount: 75 },
+      ]);
+
+      expect(replacedMealFoodRows).toHaveLength(2);
+      expect(replacedMealFoodRows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            meal_id: meal.id,
+            ingredient_id: replacementIngredient.id,
+            composite_food_id: null,
+            amount: 250,
+          }),
+          expect.objectContaining({
+            meal_id: meal.id,
+            ingredient_id: null,
+            composite_food_id: replacementCompositeFood.id,
+            amount: 75,
+          }),
+        ]),
+      );
     });
   });
 
