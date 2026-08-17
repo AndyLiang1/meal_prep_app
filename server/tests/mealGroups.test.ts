@@ -2,142 +2,73 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { app } from "./testApp.js";
 
-async function createIngredient(overrides = {}) {
-  const res = await request(app)
-    .post("/api/ingredients")
-    .send({
-      name: "Banana",
-      calories: 105,
-      protein: 1.3,
-      carbs: 27,
-      fats: 0.4,
-      servingSize: 100,
-      unit: "GRAM",
-      ...overrides,
-    });
-  return res.body;
-}
-
-async function createMeal(name: string) {
-  const ingredient = await createIngredient({ name: `${name}-ingredient` });
-  const res = await request(app)
-    .post("/api/meals")
-    .send({
-      name,
-      foods: [{ ingredientId: ingredient.id, amount: 100 }],
-    });
-  return res.body;
-}
-
 describe("Meal Groups API", () => {
   describe("POST /api/meal-groups", () => {
-    it("creates a meal group with meals and returns nested meal details", async () => {
-      const mealFirst = await createMeal("Oatmeal");
-      const mealSecond = await createMeal("Eggs");
-
+    it("creates a meal group with 3 auto-created empty meals", async () => {
       const res = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "Breakfast Options",
-          tag: "breakfast",
-          meals: [
-            { mealId: mealFirst.id, sortOrder: 0 },
-            { mealId: mealSecond.id, sortOrder: 1 },
-          ],
+          tags: ["chicken"],
         });
 
       expect(res.status).toBe(201);
       expect(res.body.name).toBe("Breakfast Options");
-      expect(res.body.tag).toBe("breakfast");
-      expect(res.body.display_as_default).toBe(false);
-      expect(res.body.meals).toHaveLength(2);
+      expect(res.body.tags).toEqual(["chicken"]);
+      expect(res.body.displayAsDefault).toBe(false);
+      expect(res.body.meals).toHaveLength(3);
       expect(res.body.meals[0]).toMatchObject({
-        mealId: mealFirst.id,
-        name: "Oatmeal",
+        name: "Meal 1",
         sortOrder: 0,
       });
       expect(res.body.meals[1]).toMatchObject({
-        mealId: mealSecond.id,
-        name: "Eggs",
+        name: "Meal 2",
         sortOrder: 1,
+      });
+      expect(res.body.meals[2]).toMatchObject({
+        name: "Meal 3",
+        sortOrder: 2,
       });
     });
 
-    it("rejects creation with a non-existent meal id", async () => {
-      const res = await request(app)
-        .post("/api/meal-groups")
-        .send({
-          name: "Bad",
-          tag: "lunch",
-          meals: [{ mealId: "00000000-0000-0000-0000-000000000000" }],
-        });
+    it("creates a meal group without tags", async () => {
+      const res = await request(app).post("/api/meal-groups").send({ name: "No Tags" });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/meals not found/i);
+      expect(res.status).toBe(201);
+      expect(res.body.tags).toEqual([]);
     });
 
-    it("rejects creation when required fields are missing", async () => {
+    it("rejects creation when name is missing", async () => {
       const res = await request(app)
         .post("/api/meal-groups")
-        .send({ name: "Missing tag", meals: [] });
+        .send({ tags: ["chicken"] });
 
       expect(res.status).toBe(400);
     });
 
-    it("unsets display_as_default on other groups with the same tag when creating a new default", async () => {
-      const meal = await createMeal("Pancakes");
-
+    it("unsets display_as_default on all other groups when creating a new default", async () => {
       const firstDefault = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "Default A",
-          tag: "breakfast",
+          tags: ["chicken"],
           displayAsDefault: true,
-          meals: [{ mealId: meal.id }],
         });
-      expect(firstDefault.body.display_as_default).toBe(true);
+      expect(firstDefault.body.displayAsDefault).toBe(true);
 
       const secondDefault = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "Default B",
-          tag: "breakfast",
+          tags: ["lunch"],
           displayAsDefault: true,
-          meals: [{ mealId: meal.id }],
         });
-      expect(secondDefault.body.display_as_default).toBe(true);
+      expect(secondDefault.body.displayAsDefault).toBe(true);
 
       const firstRefetched = await request(app).get(
         `/api/meal-groups/${firstDefault.body.id}`,
       );
-      expect(firstRefetched.body.display_as_default).toBe(false);
-    });
-
-    it("does not affect defaults in other tags", async () => {
-      const meal = await createMeal("Food");
-
-      const breakfastDefault = await request(app)
-        .post("/api/meal-groups")
-        .send({
-          name: "Breakfast",
-          tag: "breakfast",
-          displayAsDefault: true,
-          meals: [{ mealId: meal.id }],
-        });
-
-      await request(app)
-        .post("/api/meal-groups")
-        .send({
-          name: "Lunch",
-          tag: "lunch",
-          displayAsDefault: true,
-          meals: [{ mealId: meal.id }],
-        });
-
-      const refetched = await request(app).get(
-        `/api/meal-groups/${breakfastDefault.body.id}`,
-      );
-      expect(refetched.body.display_as_default).toBe(true);
+      expect(firstRefetched.body.displayAsDefault).toBe(false);
     });
   });
 
@@ -149,39 +80,36 @@ describe("Meal Groups API", () => {
     });
 
     it("returns meal groups with nested meals", async () => {
-      const meal = await createMeal("Salad");
       await request(app)
         .post("/api/meal-groups")
         .send({
           name: "Lunch Options",
-          tag: "lunch",
-          meals: [{ mealId: meal.id }],
+          tags: ["lunch"],
         });
 
       const res = await request(app).get("/api/meal-groups");
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(1);
-      expect(res.body[0].meals).toHaveLength(1);
-      expect(res.body[0].meals[0].name).toBe("Salad");
+      expect(res.body[0].meals).toHaveLength(3);
+      expect(res.body[0].meals[0].name).toBe("Meal 1");
     });
   });
 
   describe("GET /api/meal-groups/:id", () => {
     it("returns the meal group when it exists", async () => {
-      const meal = await createMeal("Soup");
       const created = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "Dinner Ideas",
-          tag: "dinner",
-          meals: [{ mealId: meal.id }],
+          tags: ["dinner"],
         });
 
       const res = await request(app).get(`/api/meal-groups/${created.body.id}`);
 
       expect(res.status).toBe(200);
       expect(res.body.name).toBe("Dinner Ideas");
-      expect(res.body.meals[0].name).toBe("Soup");
+      expect(res.body.meals).toHaveLength(3);
+      expect(res.body.meals[0].name).toBe("Meal 1");
     });
 
     it("returns 404 for a non-existent meal group", async () => {
@@ -193,52 +121,47 @@ describe("Meal Groups API", () => {
   });
 
   describe("PATCH /api/meal-groups/:id", () => {
-    it("updates name and tag", async () => {
-      const meal = await createMeal("Tofu");
+    it("updates name and tags", async () => {
       const created = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "Old Name",
-          tag: "old-tag",
-          meals: [{ mealId: meal.id }],
+          tags: ["old-tag"],
         });
 
       const res = await request(app)
         .patch(`/api/meal-groups/${created.body.id}`)
-        .send({ name: "New Name", tag: "new-tag" });
+        .send({ name: "New Name", tags: ["new-tag"] });
 
       expect(res.status).toBe(200);
       expect(res.body.name).toBe("New Name");
-      expect(res.body.tag).toBe("new-tag");
+      expect(res.body.tags).toEqual(["new-tag"]);
     });
 
-    it("unsets defaults on other groups in the same tag when setting display_as_default true via patch", async () => {
-      const meal = await createMeal("Bowl");
+    it("unsets defaults on all other groups when setting display_as_default true via patch", async () => {
       const firstDefault = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "First",
-          tag: "dinner",
+          tags: ["dinner"],
           displayAsDefault: true,
-          meals: [{ mealId: meal.id }],
         });
       const second = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "Second",
-          tag: "dinner",
-          meals: [{ mealId: meal.id }],
+          tags: ["lunch"],
         });
 
       const patched = await request(app)
         .patch(`/api/meal-groups/${second.body.id}`)
         .send({ displayAsDefault: true });
-      expect(patched.body.display_as_default).toBe(true);
+      expect(patched.body.displayAsDefault).toBe(true);
 
       const firstRefetched = await request(app).get(
         `/api/meal-groups/${firstDefault.body.id}`,
       );
-      expect(firstRefetched.body.display_as_default).toBe(false);
+      expect(firstRefetched.body.displayAsDefault).toBe(false);
     });
 
     it("returns 404 for a non-existent meal group", async () => {
@@ -250,21 +173,19 @@ describe("Meal Groups API", () => {
   });
 
   describe("DELETE /api/meal-groups/:id", () => {
-    it("deletes a meal group and its meal_group_meal entries", async () => {
-      const meal = await createMeal("Stew");
+    it("deletes a meal group and cascades to its meals", async () => {
       const created = await request(app)
         .post("/api/meal-groups")
         .send({
           name: "To Delete",
-          tag: "dinner",
-          meals: [{ mealId: meal.id }],
+          tags: ["dinner"],
         });
 
       const res = await request(app).delete(`/api/meal-groups/${created.body.id}`);
       expect(res.status).toBe(204);
 
-      const list = await request(app).get("/api/meal-groups");
-      expect(list.body).toHaveLength(0);
+      const listResponse = await request(app).get("/api/meal-groups");
+      expect(listResponse.body).toHaveLength(0);
     });
 
     it("returns 404 for a non-existent meal group", async () => {

@@ -7,7 +7,6 @@ process.env.LOG_LEVEL = "silent";
 afterEach(async () => {
   await sql`
     TRUNCATE TABLE
-      meal_group_meal,
       meal_group,
       meal_food,
       meal,

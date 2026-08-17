@@ -1,92 +1,70 @@
 import { describe, it, expect } from "vitest";
 import { mealGroupRepository } from "./mealGroupRepository.js";
+import type { CreateMealGroupData, MealGroupRow } from "./mealGroupRepository.js";
 import { MISSING_ID, UUID_REGEX } from "../../constants.js";
-import { createTestMeal } from "../meal/mealRepository.fixtures.js";
 import { createTestMealGroup } from "./mealGroupRepository.fixtures.js";
+import { getDb } from "../../db/database.js";
+
+async function createMealGroup(
+  createMealGroupData: CreateMealGroupData,
+): Promise<MealGroupRow> {
+  const mealGroup = await getDb()
+    .transaction()
+    .execute((transaction) =>
+      mealGroupRepository.create(createMealGroupData, transaction),
+    );
+  return mealGroup;
+}
 
 describe("mealGroupRepository", () => {
-  describe("createWithMeals", () => {
-    it("creates a meal group with no meals and returns the persisted shape", async () => {
-      const mealGroup = await mealGroupRepository.createWithMeals({
+  describe("create", () => {
+    it("creates a meal group with defaults and returns the persisted shape", async () => {
+      const mealGroup = await createMealGroup({
         name: "meal-group-empty",
-        tag: "breakfast",
-        meals: [],
       });
 
       expect(mealGroup).toEqual({
         id: expect.stringMatching(UUID_REGEX),
         name: "meal-group-empty",
-        tag: "breakfast",
+        tags: [],
         display_as_default: false,
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       });
-      expect(await mealGroupRepository.findMealsByMealGroupId(mealGroup.id)).toEqual(
-        [],
-      );
     });
 
-    it("creates a meal group with multiple meals and explicit sort_order", async () => {
-      const mealFirst = await createTestMeal("meal-1");
-      const mealSecond = await createTestMeal("meal-2");
-
-      const mealGroup = await mealGroupRepository.createWithMeals({
-        name: "meal-group-pair",
-        tag: "lunch",
-        meals: [
-          { mealId: mealFirst.id, sortOrder: 0 },
-          { mealId: mealSecond.id, sortOrder: 1 },
-        ],
-      });
-
-      const mealGroupMeals = await mealGroupRepository.findMealsByMealGroupId(
-        mealGroup.id,
-      );
-      expect(mealGroupMeals).toHaveLength(2);
-      expect(mealGroupMeals.map((row) => row.meal_id)).toEqual([
-        mealFirst.id,
-        mealSecond.id,
-      ]);
-      expect(mealGroupMeals.map((row) => row.sort_order)).toEqual([0, 1]);
-      expect(mealGroupMeals.every((row) => row.meal_group_id === mealGroup.id)).toBe(
-        true,
-      );
-    });
-
-    it("persists display_as_default=true when requested", async () => {
-      const mealGroup = await mealGroupRepository.createWithMeals({
-        name: "meal-group-default",
-        tag: "breakfast",
+    it("creates a meal group with tags and displayAsDefault", async () => {
+      const mealGroup = await createMealGroup({
+        name: "meal-group-full",
+        tags: ["chicken", "high-protein"],
         displayAsDefault: true,
-        meals: [],
-      });
-      expect(mealGroup.display_as_default).toBe(true);
-    });
-
-    it("defaults sort_order to the array index when not provided", async () => {
-      const mealA = await createTestMeal("meal-a");
-      const mealB = await createTestMeal("meal-b");
-
-      const mealGroup = await mealGroupRepository.createWithMeals({
-        name: "meal-group-auto-sort",
-        tag: "dinner",
-        meals: [{ mealId: mealA.id }, { mealId: mealB.id }],
       });
 
-      const rows = await mealGroupRepository.findMealsByMealGroupId(mealGroup.id);
-      expect(rows.map((row) => row.sort_order)).toEqual([0, 1]);
+      expect(mealGroup).toEqual({
+        id: expect.stringMatching(UUID_REGEX),
+        name: "meal-group-full",
+        tags: ["chicken", "high-protein"],
+        display_as_default: true,
+        created_at: expect.any(Date),
+        updated_at: expect.any(Date),
+      });
     });
 
-    it("rolls back the meal_group insert when a meal FK is invalid", async () => {
-      await expect(
-        mealGroupRepository.createWithMeals({
-          name: "meal-group-bad-fk",
-          tag: "breakfast",
-          meals: [{ mealId: MISSING_ID }],
-        }),
-      ).rejects.toThrow();
+    it("unsets the previous default when creating a new default group", async () => {
+      const previousDefault = await createMealGroup({
+        name: "previous-default",
+        displayAsDefault: true,
+      });
+      expect(previousDefault.display_as_default).toBe(true);
 
-      expect(await mealGroupRepository.findAll()).toEqual([]);
+      const newDefault = await createMealGroup({
+        name: "new-default",
+        displayAsDefault: true,
+      });
+      expect(newDefault.display_as_default).toBe(true);
+
+      const previousRefetched = await mealGroupRepository.findById(previousDefault.id);
+      expect(previousRefetched!.display_as_default).toBe(false);
     });
   });
 
@@ -116,89 +94,49 @@ describe("mealGroupRepository", () => {
     });
   });
 
-  describe("findMealsByMealGroupId", () => {
-    it("returns meal_group_meal rows ordered by sort_order asc", async () => {
-      const meal1 = await createTestMeal("meal-order-1");
-      const meal2 = await createTestMeal("meal-order-2");
-      const meal3 = await createTestMeal("meal-order-3");
-
-      const mealGroup = await mealGroupRepository.createWithMeals({
-        name: "meal-group-order",
-        tag: "breakfast",
-        meals: [
-          { mealId: meal1.id, sortOrder: 2 },
-          { mealId: meal2.id, sortOrder: 0 },
-          { mealId: meal3.id, sortOrder: 1 },
-        ],
-      });
-
-      const rows = await mealGroupRepository.findMealsByMealGroupId(mealGroup.id);
-      expect(rows.map((row) => row.meal_id)).toEqual([meal2.id, meal3.id, meal1.id]);
-    });
-
-    it("returns an empty array for an unknown meal group id", async () => {
-      expect(await mealGroupRepository.findMealsByMealGroupId(MISSING_ID)).toEqual([]);
-    });
-  });
-
-  describe("unsetDefaultsForTag", () => {
-    it("clears display_as_default for all rows with the given tag", async () => {
-      const meal = await createTestMeal("meal-unset");
-      const breakfastA = await mealGroupRepository.createWithMeals({
-        name: "bf-a",
-        tag: "breakfast",
+  describe("unsetAllDefaults", () => {
+    it("clears display_as_default on all default groups", async () => {
+      const groupA = await createMealGroup({
+        name: "group-a",
+        tags: ["chicken"],
         displayAsDefault: true,
-        meals: [{ mealId: meal.id }],
       });
-      const breakfastB = await mealGroupRepository.createWithMeals({
-        name: "bf-b",
-        tag: "breakfast",
-        displayAsDefault: true,
-        meals: [{ mealId: meal.id }],
+      const groupB = await createMealGroup({
+        name: "group-b",
+        tags: ["lunch"],
       });
-      const lunch = await mealGroupRepository.createWithMeals({
-        name: "lnc",
-        tag: "lunch",
-        displayAsDefault: true,
-        meals: [{ mealId: meal.id }],
-      });
+      await mealGroupRepository.update(groupB.id, { displayAsDefault: true });
 
-      await mealGroupRepository.unsetDefaultsForTag("breakfast");
+      await mealGroupRepository.unsetAllDefaults();
 
-      expect(
-        (await mealGroupRepository.findById(breakfastA.id))!.display_as_default,
-      ).toBe(false);
-      expect(
-        (await mealGroupRepository.findById(breakfastB.id))!.display_as_default,
-      ).toBe(false);
-      expect((await mealGroupRepository.findById(lunch.id))!.display_as_default).toBe(
-        true,
+      expect((await mealGroupRepository.findById(groupA.id))!.display_as_default).toBe(
+        false,
+      );
+      expect((await mealGroupRepository.findById(groupB.id))!.display_as_default).toBe(
+        false,
       );
     });
 
     it("skips the row identified by exceptId", async () => {
-      const meal = await createTestMeal("meal-unset-except");
-      const keep = await mealGroupRepository.createWithMeals({
+      const keepGroup = await createMealGroup({
         name: "keep",
-        tag: "breakfast",
+        tags: ["chicken"],
         displayAsDefault: true,
-        meals: [{ mealId: meal.id }],
       });
-      const other = await mealGroupRepository.createWithMeals({
+      const otherGroup = await createMealGroup({
         name: "other",
-        tag: "breakfast",
-        displayAsDefault: true,
-        meals: [{ mealId: meal.id }],
+        tags: ["lunch"],
       });
+      await mealGroupRepository.update(otherGroup.id, { displayAsDefault: true });
 
-      await mealGroupRepository.unsetDefaultsForTag("breakfast", keep.id);
+      await mealGroupRepository.unsetAllDefaults(keepGroup.id);
 
-      expect((await mealGroupRepository.findById(keep.id))!.display_as_default).toBe(
-        true,
-      );
-      expect((await mealGroupRepository.findById(other.id))!.display_as_default).toBe(
-        false,
-      );
+      expect(
+        (await mealGroupRepository.findById(keepGroup.id))!.display_as_default,
+      ).toBe(true);
+      expect(
+        (await mealGroupRepository.findById(otherGroup.id))!.display_as_default,
+      ).toBe(false);
     });
   });
 
@@ -208,14 +146,14 @@ describe("mealGroupRepository", () => {
 
       const updated = await mealGroupRepository.update(beforeUpdate.id, {
         name: "meal-group-after",
-        tag: "dinner",
+        tags: ["dinner"],
         displayAsDefault: true,
       });
 
       expect(updated).toEqual({
         ...beforeUpdate,
         name: "meal-group-after",
-        tag: "dinner",
+        tags: ["dinner"],
         display_as_default: true,
         updated_at: expect.any(Date),
       });
@@ -233,18 +171,12 @@ describe("mealGroupRepository", () => {
   });
 
   describe("delete", () => {
-    it("returns true and cascades meal_group_meal when the row exists", async () => {
-      const mealGroup = await createTestMealGroup("meal-group-delete", 2);
-      expect(
-        await mealGroupRepository.findMealsByMealGroupId(mealGroup.id),
-      ).toHaveLength(2);
+    it("returns true when the row exists", async () => {
+      const mealGroup = await createTestMealGroup("meal-group-delete");
 
       const deleted = await mealGroupRepository.delete(mealGroup.id);
       expect(deleted).toBe(true);
       expect(await mealGroupRepository.findById(mealGroup.id)).toBeNull();
-      expect(await mealGroupRepository.findMealsByMealGroupId(mealGroup.id)).toEqual(
-        [],
-      );
     });
 
     it("returns false when the row does not exist", async () => {

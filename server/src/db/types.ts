@@ -48,7 +48,9 @@ export interface Ingredient {
 export interface Meal {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
+  meal_group_id: string;
   name: string;
+  sort_order: number;
   updated_at: Generated<Timestamp>;
 }
 
@@ -65,15 +67,8 @@ export interface MealGroup {
   display_as_default: Generated<boolean>;
   id: Generated<string>;
   name: string;
-  tag: string;
+  tags: Generated<string[]>;
   updated_at: Generated<Timestamp>;
-}
-
-export interface MealGroupMeal {
-  id: Generated<string>;
-  meal_group_id: string;
-  meal_id: string;
-  sort_order: Generated<number>;
 }
 
 export interface DB {
@@ -83,5 +78,4 @@ export interface DB {
   meal: Meal;
   meal_food: MealFood;
   meal_group: MealGroup;
-  meal_group_meal: MealGroupMeal;
 }

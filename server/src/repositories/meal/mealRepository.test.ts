@@ -1,10 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { mealRepository } from "./mealRepository.js";
 import { ingredientRepository } from "../ingredient/ingredientRepository.js";
 import { generateIngredientInput } from "../ingredient/ingredientRepository.fixtures.js";
 import { MISSING_ID, UUID_REGEX } from "../../constants.js";
 import { createTestCompositeFood } from "../compositeFood/compositeFoodRepository.fixtures.js";
 import { createTestMeal } from "./mealRepository.fixtures.js";
+import { createTestMealGroup } from "../mealGroup/mealGroupRepository.fixtures.js";
+import { getDb } from "../../db/database.js";
+import type { MealFoodRef } from "./mealRepository.js";
 
 async function createIngredientRow(displayName: string) {
   const ingredient = await ingredientRepository.create(
@@ -14,92 +17,95 @@ async function createIngredientRow(displayName: string) {
 }
 
 describe("mealRepository", () => {
-  describe("createWithFoods", () => {
-    it("creates a meal with no foods and returns the persisted shape", async () => {
-      const meal = await mealRepository.createWithFoods({
+  let sharedMealGroupId: string;
+
+  beforeEach(async () => {
+    const mealGroup = await createTestMealGroup("meal-repo-shared-group");
+    sharedMealGroupId = mealGroup.id;
+  });
+
+  async function createMealWithFoods(mealName: string, foods: MealFoodRef[]) {
+    const meal = await createTestMeal(sharedMealGroupId, mealName);
+    await mealRepository.replaceFoods(meal.id, foods);
+    return meal;
+  }
+
+  describe("create", () => {
+    it("should create an empty meal belonging to a group and return the persisted shape", async () => {
+      const mealGroup = await createTestMealGroup("meal-group-empty");
+
+      const meal = await mealRepository.create({
         name: "meal-empty",
-        foods: [],
+        mealGroupId: mealGroup.id,
+        sortOrder: 0,
       });
 
       expect(meal).toEqual({
         id: expect.stringMatching(UUID_REGEX),
         name: "meal-empty",
+        meal_group_id: mealGroup.id,
+        sort_order: 0,
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       });
       expect(await mealRepository.findFoodsByMealId(meal.id)).toEqual([]);
     });
 
-    it("creates a meal with ingredient foods", async () => {
-      const ingredient1 = await createIngredientRow("ingredient-1");
-      const ingredient2 = await createIngredientRow("ingredient-2");
+    it("should insert the meal within the provided transaction", async () => {
+      const mealGroup = await createTestMealGroup("meal-group-tx");
 
-      const meal = await mealRepository.createWithFoods({
-        name: "meal-breakfast",
-        foods: [
-          { ingredientId: ingredient1.id, amount: 100 },
-          { ingredientId: ingredient2.id, amount: 100 },
-        ],
-      });
+      const createdMeal = await getDb()
+        .transaction()
+        .execute((transaction) =>
+          mealRepository.create(
+            {
+              name: "meal-in-transaction",
+              mealGroupId: mealGroup.id,
+              sortOrder: 1,
+            },
+            transaction,
+          ),
+        );
 
-      const mealFoods = await mealRepository.findFoodsByMealId(meal.id);
-      const ingredientIds = mealFoods.map((row) => row.ingredient_id).sort();
-
-      expect(mealFoods).toHaveLength(2);
-      expect(ingredientIds).toEqual([ingredient1.id, ingredient2.id].sort());
-      expect(mealFoods.every((row) => row.meal_id === meal.id)).toBe(true);
-      expect(mealFoods.every((row) => row.composite_food_id === null)).toBe(true);
-    });
-
-    it("creates a meal with composite foods", async () => {
-      const compositeFoodProteinShake = await createTestCompositeFood(
-        "composite-food-protein-shake",
-      );
-
-      const meal = await mealRepository.createWithFoods({
-        name: "meal-post-workout",
-        foods: [{ compositeFoodId: compositeFoodProteinShake.id, amount: 100 }],
-      });
-
-      const mealFoods = await mealRepository.findFoodsByMealId(meal.id);
-      expect(mealFoods).toHaveLength(1);
-      expect(mealFoods[0]).toEqual({
+      expect(createdMeal).toEqual({
         id: expect.stringMatching(UUID_REGEX),
-        meal_id: meal.id,
-        ingredient_id: null,
-        composite_food_id: compositeFoodProteinShake.id,
-        amount: 100,
+        name: "meal-in-transaction",
+        meal_group_id: mealGroup.id,
+        sort_order: 1,
+        created_at: expect.any(Date),
+        updated_at: expect.any(Date),
       });
     });
 
-    it("creates a meal with a mix of ingredient and composite foods", async () => {
-      const ingredientEgg = await createIngredientRow("ingredient-egg");
-      const compositeFoodShake = await createTestCompositeFood("composite-food-mixed");
+    it("should roll back the insert if the transaction is aborted", async () => {
+      const mealGroup = await createTestMealGroup("meal-group-rollback");
 
-      const meal = await mealRepository.createWithFoods({
-        name: "meal-mixed",
-        foods: [
-          { ingredientId: ingredientEgg.id, amount: 100 },
-          { compositeFoodId: compositeFoodShake.id, amount: 200 },
-        ],
-      });
-
-      const mealFoods = await mealRepository.findFoodsByMealId(meal.id);
-      expect(mealFoods).toHaveLength(2);
-
-      const rowForIngredient = mealFoods.find((row) => row.ingredient_id !== null);
-      const rowForCompositeFood = mealFoods.find(
-        (row) => row.composite_food_id !== null,
-      );
-      expect(rowForIngredient?.ingredient_id).toBe(ingredientEgg.id);
-      expect(rowForCompositeFood?.composite_food_id).toBe(compositeFoodShake.id);
-    });
-
-    it("rolls back the meal insert when a food references a non-existent ingredient", async () => {
       await expect(
-        mealRepository.createWithFoods({
+        getDb()
+          .transaction()
+          .execute(async (transaction) => {
+            await mealRepository.create(
+              {
+                name: "Orphan 1",
+                mealGroupId: mealGroup.id,
+                sortOrder: 0,
+              },
+              transaction,
+            );
+            throw new Error("forced rollback");
+          }),
+      ).rejects.toThrow("forced rollback");
+
+      const allMeals = await mealRepository.findAll();
+      expect(allMeals).toEqual([]);
+    });
+
+    it("should reject when the meal group does not exist", async () => {
+      await expect(
+        mealRepository.create({
           name: "meal-bad-fk",
-          foods: [{ ingredientId: MISSING_ID, amount: 100 }],
+          mealGroupId: MISSING_ID,
+          sortOrder: 0,
         }),
       ).rejects.toThrow();
 
@@ -108,76 +114,152 @@ describe("mealRepository", () => {
   });
 
   describe("findAll", () => {
-    it("returns an empty array when none exist", async () => {
+    it("should return an empty array when none exist", async () => {
       const rows = await mealRepository.findAll();
       expect(rows).toEqual([]);
     });
 
-    it("returns meals sorted by created_at asc (oldest first)", async () => {
-      const mealOlder = await createTestMeal("meal-sort-1");
-      const mealNewer = await createTestMeal("meal-sort-2");
+    it("should return meals sorted by created_at asc (oldest first)", async () => {
+      const mealOlder = await createTestMeal(sharedMealGroupId, "meal-sort-1");
+      const mealNewer = await createTestMeal(sharedMealGroupId, "meal-sort-2");
 
       const rows = await mealRepository.findAll();
-      expect(rows.map((row) => row.id)).toEqual([mealOlder.id, mealNewer.id]);
+      expect(rows.map((mealRow) => mealRow.id)).toEqual([mealOlder.id, mealNewer.id]);
     });
   });
 
   describe("findById", () => {
-    it("returns the row when it exists", async () => {
-      const persistedMeal = await createTestMeal("meal-lunch");
+    it("should return the row when it exists", async () => {
+      const persistedMeal = await createTestMeal(sharedMealGroupId, "meal-lunch");
 
       const found = await mealRepository.findById(persistedMeal.id);
       expect(found).toEqual(persistedMeal);
     });
 
-    it("returns null when not found", async () => {
+    it("should return null when not found", async () => {
       const found = await mealRepository.findById(MISSING_ID);
       expect(found).toBeNull();
     });
   });
 
+  describe("findByIds", () => {
+    it("should return an empty array for empty input", async () => {
+      const mealRows = await mealRepository.findByIds([]);
+      expect(mealRows).toEqual([]);
+    });
+
+    it("should return only the meals that exist for the given ids", async () => {
+      const mealFirst = await createTestMeal(sharedMealGroupId, "meal-batch-1");
+      const mealSecond = await createTestMeal(sharedMealGroupId, "meal-batch-2");
+
+      const mealRows = await mealRepository.findByIds([
+        mealFirst.id,
+        mealSecond.id,
+        MISSING_ID,
+      ]);
+
+      expect(mealRows).toHaveLength(2);
+      expect(mealRows.map((mealRow) => mealRow.id).sort()).toEqual(
+        [mealFirst.id, mealSecond.id].sort(),
+      );
+    });
+  });
+
   describe("findExistingIds", () => {
-    it("short-circuits and returns empty array for empty input", async () => {
+    it("should short-circuit and return empty array for empty input", async () => {
       expect(await mealRepository.findExistingIds([])).toEqual([]);
     });
 
-    it("returns only the subset of ids that exist", async () => {
-      const mealFound = await createTestMeal("meal-exists");
+    it("should return only the subset of ids that exist", async () => {
+      const mealFound = await createTestMeal(sharedMealGroupId, "meal-exists");
 
       const result = await mealRepository.findExistingIds([mealFound.id, MISSING_ID]);
       expect(result).toEqual([mealFound.id]);
     });
 
-    it("deduplicates repeated ids", async () => {
-      const meal = await createTestMeal("meal-dedup");
+    it("should deduplicate repeated ids", async () => {
+      const meal = await createTestMeal(sharedMealGroupId, "meal-dedup");
 
       const result = await mealRepository.findExistingIds([meal.id, meal.id, meal.id]);
       expect(result).toEqual([meal.id]);
     });
   });
 
+  describe("findByMealGroupId", () => {
+    it("should return an empty array when the group has no meals", async () => {
+      const meals = await mealRepository.findByMealGroupId(sharedMealGroupId);
+      expect(meals).toEqual([]);
+    });
+
+    it("should return an empty array for an unknown meal group id", async () => {
+      const meals = await mealRepository.findByMealGroupId(MISSING_ID);
+      expect(meals).toEqual([]);
+    });
+
+    it("should return meals sorted by sort_order ascending", async () => {
+      await mealRepository.create({
+        name: "meal-c",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 2,
+      });
+      await mealRepository.create({
+        name: "meal-a",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 0,
+      });
+      await mealRepository.create({
+        name: "meal-b",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 1,
+      });
+
+      const meals = await mealRepository.findByMealGroupId(sharedMealGroupId);
+
+      expect(meals).toHaveLength(3);
+      expect(meals.map((meal) => meal.name)).toEqual(["meal-a", "meal-b", "meal-c"]);
+    });
+
+    it("should exclude meals belonging to a different group", async () => {
+      const otherGroup = await createTestMealGroup("other-group");
+      await mealRepository.create({
+        name: "meal-in-shared",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 0,
+      });
+      await mealRepository.create({
+        name: "meal-in-other",
+        mealGroupId: otherGroup.id,
+        sortOrder: 0,
+      });
+
+      const mealsInShared = await mealRepository.findByMealGroupId(sharedMealGroupId);
+      const mealsInOther = await mealRepository.findByMealGroupId(otherGroup.id);
+
+      expect(mealsInShared).toHaveLength(1);
+      expect(mealsInShared[0].name).toBe("meal-in-shared");
+      expect(mealsInOther).toHaveLength(1);
+      expect(mealsInOther[0].name).toBe("meal-in-other");
+    });
+  });
+
   describe("findFoodsByMealId", () => {
-    it("returns an empty array for a meal with no foods", async () => {
-      const meal = await createTestMeal("meal-no-foods");
+    it("should return an empty array for a meal with no foods", async () => {
+      const meal = await createTestMeal(sharedMealGroupId, "meal-no-foods");
 
       const mealFoods = await mealRepository.findFoodsByMealId(meal.id);
       expect(mealFoods).toEqual([]);
     });
 
-    it("returns only foods for the given meal", async () => {
+    it("should return only foods for the given meal", async () => {
       const sharedIngredient = await createIngredientRow("ingredient-shared");
 
-      const mealWithOneFood = await mealRepository.createWithFoods({
-        name: "meal-one-food",
-        foods: [{ ingredientId: sharedIngredient.id, amount: 100 }],
-      });
-      const mealWithTwoFoods = await mealRepository.createWithFoods({
-        name: "meal-two-foods",
-        foods: [
-          { ingredientId: sharedIngredient.id, amount: 100 },
-          { ingredientId: sharedIngredient.id, amount: 150 },
-        ],
-      });
+      const mealWithOneFood = await createMealWithFoods("meal-one-food", [
+        { ingredientId: sharedIngredient.id, amount: 100 },
+      ]);
+      const mealWithTwoFoods = await createMealWithFoods("meal-two-foods", [
+        { ingredientId: sharedIngredient.id, amount: 100 },
+        { ingredientId: sharedIngredient.id, amount: 150 },
+      ]);
 
       const foodsForMealOne = await mealRepository.findFoodsByMealId(
         mealWithOneFood.id,
@@ -188,31 +270,33 @@ describe("mealRepository", () => {
 
       expect(foodsForMealOne).toHaveLength(1);
       expect(foodsForMealTwo).toHaveLength(2);
-      expect(foodsForMealOne.every((row) => row.meal_id === mealWithOneFood.id)).toBe(
-        true,
-      );
-      expect(foodsForMealTwo.every((row) => row.meal_id === mealWithTwoFoods.id)).toBe(
-        true,
-      );
+      expect(
+        foodsForMealOne.every((foodRow) => foodRow.meal_id === mealWithOneFood.id),
+      ).toBe(true);
+      expect(
+        foodsForMealTwo.every((foodRow) => foodRow.meal_id === mealWithTwoFoods.id),
+      ).toBe(true);
     });
 
-    it("returns an empty array for an unknown meal id", async () => {
+    it("should return an empty array for an unknown meal id", async () => {
       const mealFoods = await mealRepository.findFoodsByMealId(MISSING_ID);
       expect(mealFoods).toEqual([]);
     });
   });
 
   describe("update", () => {
-    it("returns the full row with patched name and a bumped updated_at", async () => {
-      const beforeUpdate = await createTestMeal("meal-old-name");
+    it("should return the full row with updated metadata and a bumped updated_at", async () => {
+      const beforeUpdate = await createTestMeal(sharedMealGroupId, "meal-old-name");
 
       const updatedMeal = await mealRepository.update(beforeUpdate.id, {
         name: "meal-new-name",
+        sortOrder: 2,
       });
 
       expect(updatedMeal).toEqual({
         ...beforeUpdate,
         name: "meal-new-name",
+        sort_order: 2,
         updated_at: expect.any(Date),
       });
       expect(updatedMeal!.updated_at.getTime()).toBeGreaterThanOrEqual(
@@ -220,7 +304,7 @@ describe("mealRepository", () => {
       );
     });
 
-    it("returns null when the row does not exist", async () => {
+    it("should return null when the row does not exist", async () => {
       const result = await mealRepository.update(MISSING_ID, {
         name: "meal-ghost",
       });
@@ -229,7 +313,7 @@ describe("mealRepository", () => {
   });
 
   describe("replaceFoods", () => {
-    it("replaces ingredient and composite foods on a meal", async () => {
+    it("should replace ingredient and composite foods on a meal", async () => {
       const originalIngredient = await createIngredientRow("ingredient-original");
       const replacementIngredient = await createIngredientRow("ingredient-replacement");
       const originalCompositeFood = await createTestCompositeFood(
@@ -239,13 +323,10 @@ describe("mealRepository", () => {
         "composite-food-replacement",
       );
 
-      const meal = await mealRepository.createWithFoods({
-        name: "meal-replace-foods",
-        foods: [
-          { ingredientId: originalIngredient.id, amount: 100 },
-          { compositeFoodId: originalCompositeFood.id, amount: 300 },
-        ],
-      });
+      const meal = await createMealWithFoods("meal-replace-foods", [
+        { ingredientId: originalIngredient.id, amount: 100 },
+        { compositeFoodId: originalCompositeFood.id, amount: 300 },
+      ]);
 
       const replacedMealFoodRows = await mealRepository.replaceFoods(meal.id, [
         { ingredientId: replacementIngredient.id, amount: 250 },
@@ -273,25 +354,22 @@ describe("mealRepository", () => {
   });
 
   describe("delete", () => {
-    it("returns true and removes the row when it exists", async () => {
-      const persistedMeal = await createTestMeal("meal-delete");
+    it("should return true and remove the row when it exists", async () => {
+      const persistedMeal = await createTestMeal(sharedMealGroupId, "meal-delete");
 
       const deleted = await mealRepository.delete(persistedMeal.id);
       expect(deleted).toBe(true);
       expect(await mealRepository.findById(persistedMeal.id)).toBeNull();
     });
 
-    it("deletes meal_food rows for ingredient and composite foods", async () => {
+    it("should delete meal_food rows for ingredient and composite foods", async () => {
       const ingredient = await createIngredientRow("ingredient-delete");
       const compositeFood = await createTestCompositeFood("composite-food-delete");
 
-      const meal = await mealRepository.createWithFoods({
-        name: "meal-delete-foods",
-        foods: [
-          { ingredientId: ingredient.id, amount: 100 },
-          { compositeFoodId: compositeFood.id, amount: 300 },
-        ],
-      });
+      const meal = await createMealWithFoods("meal-delete-foods", [
+        { ingredientId: ingredient.id, amount: 100 },
+        { compositeFoodId: compositeFood.id, amount: 300 },
+      ]);
 
       const mealFoodRowsBeforeDelete = await mealRepository.findFoodsByMealId(meal.id);
       expect(mealFoodRowsBeforeDelete).toHaveLength(2);
@@ -303,7 +381,7 @@ describe("mealRepository", () => {
       expect(mealFoodRowsAfterDelete).toEqual([]);
     });
 
-    it("returns false when the row does not exist", async () => {
+    it("should return false when the row does not exist", async () => {
       const deleted = await mealRepository.delete(MISSING_ID);
       expect(deleted).toBe(false);
     });

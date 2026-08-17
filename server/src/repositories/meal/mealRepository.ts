@@ -1,10 +1,12 @@
-import { getDb } from "../../db/database.js";
+import { getDb, type DatabaseTransaction } from "../../db/database.js";
 
 /** Optional single row → `T | null`; collections → `T[]` (empty = `[]`). */
 
 export interface MealRow {
   id: string;
   name: string;
+  meal_group_id: string;
+  sort_order: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -25,42 +27,26 @@ export interface MealFoodRef {
 
 export interface CreateMealData {
   name: string;
-  foods: MealFoodRef[];
-}
-
-export interface UpdateMealData {
-  name?: string;
-  foods?: MealFoodRef[];
+  mealGroupId: string;
+  sortOrder: number;
 }
 
 export const mealRepository = {
-  async createWithFoods(data: CreateMealData): Promise<MealRow> {
-    const meal = await getDb()
-      .transaction()
-      .execute(async (transaction) => {
-        const insertedMeal = await transaction
-          .insertInto("meal")
-          .values({ name: data.name })
-          .returningAll()
-          .executeTakeFirstOrThrow();
-
-        if (data.foods.length > 0) {
-          await transaction
-            .insertInto("meal_food")
-            .values(
-              data.foods.map((ref) => ({
-                meal_id: insertedMeal.id,
-                ingredient_id: ref.ingredientId ?? null,
-                composite_food_id: ref.compositeFoodId ?? null,
-                amount: ref.amount,
-              })),
-            )
-            .execute();
-        }
-
-        return insertedMeal;
-      });
-    return meal;
+  async create(
+    data: CreateMealData,
+    transaction?: DatabaseTransaction,
+  ): Promise<MealRow> {
+    const databaseConnection = transaction ?? getDb();
+    const insertedMeal = await databaseConnection
+      .insertInto("meal")
+      .values({
+        name: data.name,
+        meal_group_id: data.mealGroupId,
+        sort_order: data.sortOrder,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return insertedMeal;
   },
 
   async findAll(): Promise<MealRow[]> {
@@ -81,6 +67,26 @@ export const mealRepository = {
     return row ?? null;
   },
 
+  async findByIds(ids: string[]): Promise<MealRow[]> {
+    if (ids.length === 0) return [];
+    const rows = await getDb()
+      .selectFrom("meal")
+      .selectAll()
+      .where("id", "in", ids)
+      .execute();
+    return rows;
+  },
+
+  async findByMealGroupId(mealGroupId: string): Promise<MealRow[]> {
+    const rows = await getDb()
+      .selectFrom("meal")
+      .selectAll()
+      .where("meal_group_id", "=", mealGroupId)
+      .orderBy("sort_order", "asc")
+      .execute();
+    return rows;
+  },
+
   async findExistingIds(ids: string[]): Promise<string[]> {
     if (ids.length === 0) return [];
     const rows = await getDb()
@@ -88,7 +94,7 @@ export const mealRepository = {
       .select("id")
       .where("id", "in", ids)
       .execute();
-    const mealIds = rows.map((r) => r.id);
+    const mealIds = rows.map((mealRow) => mealRow.id);
     return mealIds;
   },
 
@@ -111,10 +117,18 @@ export const mealRepository = {
     return rows;
   },
 
-  async update(id: string, data: { name?: string } = {}): Promise<MealRow | null> {
-    const setValues: { updated_at: Date; name?: string } = { updated_at: new Date() };
+  async update(
+    id: string,
+    data: { name?: string; sortOrder?: number } = {},
+  ): Promise<MealRow | null> {
+    const setValues: { updated_at: Date; name?: string; sort_order?: number } = {
+      updated_at: new Date(),
+    };
     if (data.name !== undefined) {
       setValues.name = data.name;
+    }
+    if (data.sortOrder !== undefined) {
+      setValues.sort_order = data.sortOrder;
     }
 
     const row = await getDb()

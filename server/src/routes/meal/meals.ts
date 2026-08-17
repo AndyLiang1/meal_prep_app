@@ -4,6 +4,8 @@ import {
   createMealSchema,
   updateMealSchema,
   idParamSchema,
+  listMealsQuerySchema,
+  reorderMealsSchema,
 } from "../../schemas/meal.js";
 import { mealService } from "../../services/meal/mealService.js";
 
@@ -18,14 +20,32 @@ mealRoutes.post("/", validate({ body: createMealSchema }), async (req, res, next
   }
 });
 
-mealRoutes.get("/", async (_req, res, next) => {
-  try {
-    const meals = await mealService.list();
-    res.json(meals);
-  } catch (err) {
-    next(err);
-  }
-});
+mealRoutes.get(
+  "/",
+  validate({ query: listMealsQuerySchema }),
+  async (req, res, next) => {
+    try {
+      const mealGroupId = req.query.mealGroupId as string;
+      const meals = await mealService.list(mealGroupId);
+      res.json(meals);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+mealRoutes.patch(
+  "/reorder",
+  validate({ body: reorderMealsSchema }),
+  async (req, res, next) => {
+    try {
+      await mealService.reorder(req.body.mealGroupId, req.body.mealIds);
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 mealRoutes.patch(
   "/:id",

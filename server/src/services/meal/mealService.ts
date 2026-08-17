@@ -1,10 +1,10 @@
 import {
   mealRepository,
-  type CreateMealData,
-  type UpdateMealData,
+  type MealRow,
   type MealFoodRow,
   type MealFoodRef,
 } from "../../repositories/meal/mealRepository.js";
+import { mealGroupRepository } from "../../repositories/mealGroup/mealGroupRepository.js";
 import {
   ingredientRepository,
   type IngredientRow,
@@ -13,6 +13,7 @@ import {
   compositeFoodRepository,
   type CompositeFoodWithIngredientsJoinRow,
 } from "../../repositories/compositeFood/compositeFoodRepository.js";
+import type { CreateMealData } from "../../schemas/meal.js";
 import type {
   TIngredient,
   TCompositeFood,
@@ -20,6 +21,11 @@ import type {
   TMeal,
   TMealFood,
 } from "../../types.js";
+
+export interface UpdateMealInput {
+  name?: string;
+  foods?: MealFoodRef[];
+}
 
 function round2(value: number): number {
   const scaled = Math.round(value * 100);
@@ -112,7 +118,9 @@ async function fetchFoodCatalog(mealFoodRows: MealFoodRow[]): Promise<FoodCatalo
     compositeFoodRepository.findByIdsWithIngredients(compositeFoodIds),
   ]);
 
-  const ingredientMap = new Map(ingredientRows.map((row) => [row.id, row]));
+  const ingredientMap = new Map(
+    ingredientRows.map((ingredientRow) => [ingredientRow.id, ingredientRow]),
+  );
 
   const compositeFoodMap = new Map<string, CompositeFoodWithIngredientsJoinRow[]>();
   for (const joinRow of compositeFoodJoinRows) {
@@ -210,26 +218,52 @@ function assertMealFoodRefsExist(
   }
 }
 
-export const mealService = {
-  async create(createMealData: CreateMealData): Promise<TMeal> {
-    const mealFoodRows = refsToMealFoodRows(createMealData.foods);
-    const foodCatalog = await fetchFoodCatalog(mealFoodRows);
-    assertMealFoodRefsExist(createMealData.foods, foodCatalog);
+function findLowestAvailableSortOrder(existingSortOrders: Set<number>): number {
+  let candidateSortOrder = 0;
+  while (existingSortOrders.has(candidateSortOrder)) {
+    candidateSortOrder += 1;
+  }
+  return candidateSortOrder;
+}
 
-    const mealRecord = await mealRepository.createWithFoods(createMealData);
-    const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
-    const createdMeal: TMeal = {
-      id: mealRecord.id,
-      name: mealRecord.name,
-      foods: mealFoods,
-    };
+export function toMeal(mealRow: MealRow, foods: TMealFood[] = []): TMeal {
+  const meal: TMeal = {
+    id: mealRow.id,
+    name: mealRow.name,
+    mealGroupId: mealRow.meal_group_id,
+    sortOrder: mealRow.sort_order,
+    foods,
+  };
+  return meal;
+}
+
+export const mealService = {
+  async create(input: CreateMealData): Promise<TMeal> {
+    const mealGroup = await mealGroupRepository.findById(input.mealGroupId);
+    if (!mealGroup) {
+      throw new Error("Meal group not found");
+    }
+
+    const existingMeals = await mealRepository.findByMealGroupId(input.mealGroupId);
+    const existingSortOrders = new Set(
+      existingMeals.map((mealRow) => mealRow.sort_order),
+    );
+    const resolvedSortOrder = findLowestAvailableSortOrder(existingSortOrders);
+
+    const mealRecord = await mealRepository.create({
+      name: input.name,
+      mealGroupId: input.mealGroupId,
+      sortOrder: resolvedSortOrder,
+    });
+
+    const createdMeal = toMeal(mealRecord);
     return createdMeal;
   },
 
-  async list(): Promise<TMeal[]> {
-    const mealRows = await mealRepository.findAll();
-    const allMealIds = mealRows.map((mealRow) => mealRow.id);
-    const allMealFoodRows = await mealRepository.findFoodsByMealIds(allMealIds);
+  async list(mealGroupId: string): Promise<TMeal[]> {
+    const mealRows = await mealRepository.findByMealGroupId(mealGroupId);
+    const mealIds = mealRows.map((mealRow) => mealRow.id);
+    const allMealFoodRows = await mealRepository.findFoodsByMealIds(mealIds);
 
     const catalog = await fetchFoodCatalog(allMealFoodRows);
 
@@ -243,17 +277,13 @@ export const mealService = {
     const meals: TMeal[] = mealRows.map((mealRow) => {
       const mealFoodRowsForMeal = mealFoodRowsByMealId.get(mealRow.id) ?? [];
       const foods = assembleMealFoodsFromCatalog(mealFoodRowsForMeal, catalog);
-      const meal: TMeal = {
-        id: mealRow.id,
-        name: mealRow.name,
-        foods,
-      };
+      const meal = toMeal(mealRow, foods);
       return meal;
     });
     return meals;
   },
 
-  async update(id: string, input: UpdateMealData): Promise<TMeal | null> {
+  async update(id: string, input: UpdateMealInput): Promise<TMeal | null> {
     const existingMeal = await mealRepository.findById(id);
     if (!existingMeal) return null;
 
@@ -264,33 +294,59 @@ export const mealService = {
       await mealRepository.replaceFoods(id, input.foods);
 
       const updatedMealRecord = await mealRepository.update(id, { name: input.name });
-      const mealRecord = updatedMealRecord!;
+      if (!updatedMealRecord) return null;
 
       const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
-      const updatedMeal: TMeal = {
-        id: mealRecord.id,
-        name: mealRecord.name,
-        foods: mealFoods,
-      };
+      const updatedMeal = toMeal(updatedMealRecord, mealFoods);
       return updatedMeal;
     }
 
     const updatedMealRecord = await mealRepository.update(id, { name: input.name });
-    const mealRecord = updatedMealRecord!;
+    if (!updatedMealRecord) return null;
 
-    const mealFoodRows = await mealRepository.findFoodsByMealId(mealRecord.id);
+    const mealFoodRows = await mealRepository.findFoodsByMealId(updatedMealRecord.id);
     const foodCatalog = await fetchFoodCatalog(mealFoodRows);
     const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
-    const updatedMeal: TMeal = {
-      id: mealRecord.id,
-      name: mealRecord.name,
-      foods: mealFoods,
-    };
+    const updatedMeal = toMeal(updatedMealRecord, mealFoods);
     return updatedMeal;
   },
 
+  async reorder(mealGroupId: string, mealIds: string[]): Promise<void> {
+    const existingMeals = await mealRepository.findByMealGroupId(mealGroupId);
+    const existingMealIds = new Set(existingMeals.map((mealRow) => mealRow.id));
+
+    const allIdsExist = mealIds.every((mealId) => existingMealIds.has(mealId));
+    if (!allIdsExist || mealIds.length !== existingMeals.length) {
+      throw new Error("Meal IDs do not match the meals in this group");
+    }
+
+    await Promise.all(
+      mealIds.map((mealId, index) =>
+        mealRepository.update(mealId, { sortOrder: index }),
+      ),
+    );
+  },
+
   async delete(id: string): Promise<boolean> {
+    const mealToDelete = await mealRepository.findById(id);
+    if (!mealToDelete) {
+      return false;
+    }
+
     const deleted = await mealRepository.delete(id);
+    if (deleted) {
+      const remainingMeals = await mealRepository.findByMealGroupId(
+        mealToDelete.meal_group_id,
+      );
+      const mealsToShift = remainingMeals.filter(
+        (meal) => meal.sort_order > mealToDelete.sort_order,
+      );
+      await Promise.all(
+        mealsToShift.map((meal) =>
+          mealRepository.update(meal.id, { sortOrder: meal.sort_order - 1 }),
+        ),
+      );
+    }
     return deleted;
   },
 };

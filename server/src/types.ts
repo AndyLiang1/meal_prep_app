@@ -42,5 +42,17 @@ export type TMealFood =
 export interface TMeal {
   id: string;
   name: string;
+  mealGroupId: string;
+  sortOrder: number;
   foods: TMealFood[];
+}
+
+export interface TMealGroup {
+  id: string;
+  name: string;
+  tags: string[];
+  displayAsDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  meals: TMeal[];
 }

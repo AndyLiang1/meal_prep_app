@@ -1,72 +1,52 @@
-import { getDb } from "../../db/database.js";
+import { getDb, type DatabaseTransaction } from "../../db/database.js";
 
 /** Optional single row → `T | null`; collections → `T[]` (empty = `[]`). */
 
 export interface MealGroupRow {
   id: string;
   name: string;
-  tag: string;
+  tags: string[];
   display_as_default: boolean;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface MealGroupMealRow {
-  id: string;
-  meal_group_id: string;
-  meal_id: string;
-  sort_order: number;
-}
-
-export interface MealGroupMealRef {
-  mealId: string;
-  sortOrder?: number;
-}
-
 export interface CreateMealGroupData {
   name: string;
-  tag: string;
+  tags?: string[];
   displayAsDefault?: boolean;
-  meals: MealGroupMealRef[];
 }
 
 export interface UpdateMealGroupData {
   name?: string;
-  tag?: string;
+  tags?: string[];
   displayAsDefault?: boolean;
 }
 
 export const mealGroupRepository = {
-  async createWithMeals(data: CreateMealGroupData): Promise<MealGroupRow> {
-    const mealGroup = await getDb()
-      .transaction()
-      .execute(async (transaction) => {
-        const insertedMealGroup = await transaction
-          .insertInto("meal_group")
-          .values({
-            name: data.name,
-            tag: data.tag,
-            display_as_default: data.displayAsDefault ?? false,
-          })
-          .returningAll()
-          .executeTakeFirstOrThrow();
+  async create(
+    data: CreateMealGroupData,
+    transaction: DatabaseTransaction,
+  ): Promise<MealGroupRow> {
+    if (data.displayAsDefault) {
+      await transaction
+        .updateTable("meal_group")
+        .set({ display_as_default: false, updated_at: new Date() })
+        .where("display_as_default", "=", true)
+        .execute();
+    }
 
-        if (data.meals.length > 0) {
-          await transaction
-            .insertInto("meal_group_meal")
-            .values(
-              data.meals.map((ref, index) => ({
-                meal_group_id: insertedMealGroup.id,
-                meal_id: ref.mealId,
-                sort_order: ref.sortOrder ?? index,
-              })),
-            )
-            .execute();
-        }
+    const insertedMealGroup = await transaction
+      .insertInto("meal_group")
+      .values({
+        name: data.name,
+        tags: data.tags ?? [],
+        display_as_default: data.displayAsDefault ?? false,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-        return insertedMealGroup;
-      });
-    return mealGroup;
+    return insertedMealGroup;
   },
 
   async findAll(): Promise<MealGroupRow[]> {
@@ -87,21 +67,10 @@ export const mealGroupRepository = {
     return row ?? null;
   },
 
-  async findMealsByMealGroupId(mealGroupId: string): Promise<MealGroupMealRow[]> {
-    const rows = await getDb()
-      .selectFrom("meal_group_meal")
-      .selectAll()
-      .where("meal_group_id", "=", mealGroupId)
-      .orderBy("sort_order", "asc")
-      .execute();
-    return rows;
-  },
-
-  async unsetDefaultsForTag(tag: string, exceptId?: string): Promise<void> {
+  async unsetAllDefaults(exceptId?: string): Promise<void> {
     let query = getDb()
       .updateTable("meal_group")
       .set({ display_as_default: false, updated_at: new Date() })
-      .where("tag", "=", tag)
       .where("display_as_default", "=", true);
     if (exceptId !== undefined) {
       query = query.where("id", "!=", exceptId);
@@ -110,14 +79,18 @@ export const mealGroupRepository = {
   },
 
   async update(id: string, data: UpdateMealGroupData): Promise<MealGroupRow | null> {
-    const patch = {
-      ...(data.name !== undefined && { name: data.name }),
-      ...(data.tag !== undefined && { tag: data.tag }),
-      ...(data.displayAsDefault !== undefined && {
-        display_as_default: data.displayAsDefault,
-      }),
+    const patch: Record<string, unknown> = {
       updated_at: new Date(),
     };
+    if (data.name !== undefined) {
+      patch.name = data.name;
+    }
+    if (data.tags !== undefined) {
+      patch.tags = data.tags;
+    }
+    if (data.displayAsDefault !== undefined) {
+      patch.display_as_default = data.displayAsDefault;
+    }
 
     const row = await getDb()
       .updateTable("meal_group")

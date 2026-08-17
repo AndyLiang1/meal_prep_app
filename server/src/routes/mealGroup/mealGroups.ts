@@ -14,12 +14,8 @@ mealGroupRoutes.post(
   validate({ body: createMealGroupSchema }),
   async (req, res, next) => {
     try {
-      const result = await mealGroupService.create(req.body);
-      if ("error" in result) {
-        res.status(400).json({ error: result.error });
-        return;
-      }
-      res.status(201).json(result);
+      const createdMealGroup = await mealGroupService.create(req.body);
+      res.status(201).json(createdMealGroup);
     } catch (err) {
       next(err);
     }
@@ -28,8 +24,8 @@ mealGroupRoutes.post(
 
 mealGroupRoutes.get("/", async (_req, res, next) => {
   try {
-    const groups = await mealGroupService.list();
-    res.json(groups);
+    const mealGroups = await mealGroupService.list();
+    res.json(mealGroups);
   } catch (err) {
     next(err);
   }
@@ -40,12 +36,12 @@ mealGroupRoutes.get(
   validate({ params: idParamSchema }),
   async (req, res, next) => {
     try {
-      const group = await mealGroupService.getById(req.params.id);
-      if (!group) {
+      const mealGroup = await mealGroupService.getById(req.params.id);
+      if (!mealGroup) {
         res.status(404).json({ error: "Meal group not found" });
         return;
       }
-      res.json(group);
+      res.json(mealGroup);
     } catch (err) {
       next(err);
     }
@@ -57,12 +53,12 @@ mealGroupRoutes.patch(
   validate({ params: idParamSchema, body: updateMealGroupSchema }),
   async (req, res, next) => {
     try {
-      const group = await mealGroupService.update(req.params.id, req.body);
-      if (!group) {
+      const updatedMealGroup = await mealGroupService.update(req.params.id, req.body);
+      if (!updatedMealGroup) {
         res.status(404).json({ error: "Meal group not found" });
         return;
       }
-      res.json(group);
+      res.json(updatedMealGroup);
     } catch (err) {
       next(err);
     }

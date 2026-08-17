@@ -1,5 +1,5 @@
 ---
-description: Coding conventions for variable naming and debuggable returns
+description: Coding conventions for variable naming, debuggable returns, and test style
 alwaysApply: true
 ---
 
@@ -101,3 +101,23 @@ ingredients.map((ingredient) => {
 
 - Early returns of literals / simple expressions: `return null;`, `return [];`, `return ingredientRecord ?? null;`, `return deletedCount > 0;` — these don't invoke a function, so a breakpoint on the line already shows everything.
 - Arrow-function shorthand with no body (`(x) => x * 2`) — there's no `return` statement to break on.
+
+## Test Naming
+
+All `it(...)` descriptions must begin with the word **"should"**. This keeps test output consistent and reads naturally as a specification.
+
+### Examples
+
+Bad:
+```typescript
+it("returns null when the meal does not exist", async () => { ... });
+it("creates an empty meal belonging to a group", async () => { ... });
+it("rejects when the id is invalid", async () => { ... });
+```
+
+Good:
+```typescript
+it("should return null when the meal does not exist", async () => { ... });
+it("should create an empty meal belonging to a group", async () => { ... });
+it("should reject when the id is invalid", async () => { ... });
+```
