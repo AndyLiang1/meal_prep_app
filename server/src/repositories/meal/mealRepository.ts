@@ -25,7 +25,7 @@ export interface MealFoodRef {
   amount: number;
 }
 
-export interface CreateMealData {
+export interface CreateMealRepoInput {
   name: string;
   mealGroupId: string;
   sortOrder: number;
@@ -33,16 +33,16 @@ export interface CreateMealData {
 
 export const mealRepository = {
   async create(
-    data: CreateMealData,
+    createMealInput: CreateMealRepoInput,
     transaction?: DatabaseTransaction,
   ): Promise<MealRow> {
     const databaseConnection = transaction ?? getDb();
     const insertedMeal = await databaseConnection
       .insertInto("meal")
       .values({
-        name: data.name,
-        meal_group_id: data.mealGroupId,
-        sort_order: data.sortOrder,
+        name: createMealInput.name,
+        meal_group_id: createMealInput.mealGroupId,
+        sort_order: createMealInput.sortOrder,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -50,98 +50,105 @@ export const mealRepository = {
   },
 
   async findAll(): Promise<MealRow[]> {
-    const rows = await getDb()
+    const mealRows = await getDb()
       .selectFrom("meal")
       .selectAll()
       .orderBy("created_at", "asc")
       .execute();
-    return rows;
+    return mealRows;
   },
 
-  async findById(id: string): Promise<MealRow | null> {
-    const row = await getDb()
+  async findById(mealId: string): Promise<MealRow | null> {
+    const mealRecord = await getDb()
       .selectFrom("meal")
       .selectAll()
-      .where("id", "=", id)
+      .where("id", "=", mealId)
       .executeTakeFirst();
-    return row ?? null;
+    return mealRecord ?? null;
   },
 
-  async findByIds(ids: string[]): Promise<MealRow[]> {
-    if (ids.length === 0) return [];
-    const rows = await getDb()
+  async findByIds(mealIds: string[]): Promise<MealRow[]> {
+    if (mealIds.length === 0) return [];
+    const mealRows = await getDb()
       .selectFrom("meal")
       .selectAll()
-      .where("id", "in", ids)
+      .where("id", "in", mealIds)
       .execute();
-    return rows;
+    return mealRows;
   },
 
   async findByMealGroupId(mealGroupId: string): Promise<MealRow[]> {
-    const rows = await getDb()
+    const mealRows = await getDb()
       .selectFrom("meal")
       .selectAll()
       .where("meal_group_id", "=", mealGroupId)
       .orderBy("sort_order", "asc")
       .execute();
-    return rows;
+    return mealRows;
   },
 
-  async findExistingIds(ids: string[]): Promise<string[]> {
-    if (ids.length === 0) return [];
-    const rows = await getDb()
+  async findExistingIds(mealIds: string[]): Promise<string[]> {
+    if (mealIds.length === 0) return [];
+    const mealIdRows = await getDb()
       .selectFrom("meal")
       .select("id")
-      .where("id", "in", ids)
+      .where("id", "in", mealIds)
       .execute();
-    const mealIds = rows.map((mealRow) => mealRow.id);
-    return mealIds;
+    const existingMealIds = mealIdRows.map((mealRow) => mealRow.id);
+    return existingMealIds;
   },
 
   async findFoodsByMealId(mealId: string): Promise<MealFoodRow[]> {
-    const rows = await getDb()
+    const mealFoodRows = await getDb()
       .selectFrom("meal_food")
       .selectAll()
       .where("meal_id", "=", mealId)
       .execute();
-    return rows;
+    return mealFoodRows;
   },
 
   async findFoodsByMealIds(mealIds: string[]): Promise<MealFoodRow[]> {
     if (mealIds.length === 0) return [];
-    const rows = await getDb()
+    const mealFoodRows = await getDb()
       .selectFrom("meal_food")
       .selectAll()
       .where("meal_id", "in", mealIds)
       .execute();
-    return rows;
+    return mealFoodRows;
   },
 
   async update(
-    id: string,
-    data: { name?: string; sortOrder?: number } = {},
+    mealId: string,
+    updateMealInput: { name?: string; sortOrder?: number } = {},
   ): Promise<MealRow | null> {
-    const setValues: { updated_at: Date; name?: string; sort_order?: number } = {
+    const mealSetValues: {
+      updated_at: Date;
+      name?: string;
+      sort_order?: number;
+    } = {
       updated_at: new Date(),
     };
-    if (data.name !== undefined) {
-      setValues.name = data.name;
+    if (updateMealInput.name !== undefined) {
+      mealSetValues.name = updateMealInput.name;
     }
-    if (data.sortOrder !== undefined) {
-      setValues.sort_order = data.sortOrder;
+    if (updateMealInput.sortOrder !== undefined) {
+      mealSetValues.sort_order = updateMealInput.sortOrder;
     }
 
-    const row = await getDb()
+    const updatedMealRecord = await getDb()
       .updateTable("meal")
-      .set(setValues)
-      .where("id", "=", id)
+      .set(mealSetValues)
+      .where("id", "=", mealId)
       .returningAll()
       .executeTakeFirst();
-    return row ?? null;
+    return updatedMealRecord ?? null;
   },
 
-  async replaceFoods(mealId: string, foods: MealFoodRef[]): Promise<MealFoodRow[]> {
-    const mealFoodRows = await getDb()
+  async replaceFoods(
+    mealId: string,
+    mealFoodRefs: MealFoodRef[],
+  ): Promise<MealFoodRow[]> {
+    const replacedMealFoodRows = await getDb()
       .transaction()
       .execute(async (transaction) => {
         await transaction
@@ -149,33 +156,33 @@ export const mealRepository = {
           .where("meal_id", "=", mealId)
           .execute();
 
-        if (foods.length === 0) {
+        if (mealFoodRefs.length === 0) {
           return [];
         }
 
         const insertedMealFoodRows = await transaction
           .insertInto("meal_food")
           .values(
-            foods.map((foodRef) => ({
+            mealFoodRefs.map((mealFoodRef) => ({
               meal_id: mealId,
-              ingredient_id: foodRef.ingredientId ?? null,
-              composite_food_id: foodRef.compositeFoodId ?? null,
-              amount: foodRef.amount,
+              ingredient_id: mealFoodRef.ingredientId ?? null,
+              composite_food_id: mealFoodRef.compositeFoodId ?? null,
+              amount: mealFoodRef.amount,
             })),
           )
           .returningAll()
           .execute();
         return insertedMealFoodRows;
       });
-    return mealFoodRows;
+    return replacedMealFoodRows;
   },
 
-  async delete(id: string): Promise<boolean> {
-    const result = await getDb()
+  async delete(mealId: string): Promise<boolean> {
+    const deleteResult = await getDb()
       .deleteFrom("meal")
-      .where("id", "=", id)
+      .where("id", "=", mealId)
       .executeTakeFirst();
-    const deletedCount = Number(result.numDeletedRows);
+    const deletedCount = Number(deleteResult.numDeletedRows);
     return deletedCount > 0;
   },
 };
