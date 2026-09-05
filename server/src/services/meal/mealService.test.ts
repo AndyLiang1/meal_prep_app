@@ -496,6 +496,35 @@ describe("mealService", () => {
       expect(mockedMealRepo.update).toHaveBeenCalledWith("meal-b", { sortOrder: 2 });
     });
 
+    it("should throw when meal IDs contain duplicates", async () => {
+      const existingMeals: MealRow[] = [
+        {
+          id: "meal-a",
+          name: "Meal A",
+          meal_group_id: MOCK_MEAL_GROUP_ID,
+          sort_order: 0,
+          created_at: new Date("2026-06-01T12:00:00.000Z"),
+          updated_at: new Date("2026-06-01T12:00:00.000Z"),
+        },
+        {
+          id: "meal-b",
+          name: "Meal B",
+          meal_group_id: MOCK_MEAL_GROUP_ID,
+          sort_order: 1,
+          created_at: new Date("2026-06-01T12:00:00.000Z"),
+          updated_at: new Date("2026-06-01T12:00:00.000Z"),
+        },
+      ];
+
+      mockedMealRepo.findByMealGroupId.mockResolvedValue(existingMeals);
+
+      await expect(
+        mealService.reorder(MOCK_MEAL_GROUP_ID, ["meal-a", "meal-a"]),
+      ).rejects.toThrow("Meal IDs do not match the meals in this group");
+
+      expect(mockedMealRepo.update).not.toHaveBeenCalled();
+    });
+
     it("should throw when meal IDs do not match the group", async () => {
       const existingMeals: MealRow[] = [
         {

@@ -315,8 +315,14 @@ export const mealService = {
     const existingMeals = await mealRepository.findByMealGroupId(mealGroupId);
     const existingMealIds = new Set(existingMeals.map((mealRow) => mealRow.id));
 
+    const uniqueRequestedMealIds = new Set(mealIds);
     const allIdsExist = mealIds.every((mealId) => existingMealIds.has(mealId));
-    if (!allIdsExist || mealIds.length !== existingMeals.length) {
+    const hasDuplicateMealIds = uniqueRequestedMealIds.size !== mealIds.length;
+    if (
+      !allIdsExist ||
+      hasDuplicateMealIds ||
+      mealIds.length !== existingMeals.length
+    ) {
       throw new Error("Meal IDs do not match the meals in this group");
     }
 
