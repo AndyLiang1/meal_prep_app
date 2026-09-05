@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  compositeFoodService,
-  type CreateCompositeFoodInput,
-  type UpdateCompositeFoodInput,
-} from "./compositeFoodService.js";
+import { compositeFoodService } from "./compositeFoodService.js";
+import type {
+  CreateCompositeFoodInput,
+  UpdateCompositeFoodInput,
+} from "../../schemas/compositeFood.js";
 import { compositeFoodRepository } from "../../repositories/compositeFood/compositeFoodRepository.js";
 import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
 import { MISSING_ID } from "../../constants.js";

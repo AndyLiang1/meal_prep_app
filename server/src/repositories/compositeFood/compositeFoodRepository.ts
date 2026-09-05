@@ -1,5 +1,9 @@
 import { getDb } from "../../db/database.js";
 import type { TIngredientUnit } from "../../schemas/ingredient.js";
+import type {
+  CreateCompositeFoodInput,
+  UpdateCompositeFoodInput,
+} from "../../schemas/compositeFood.js";
 
 /** Optional single row → `T | null`; collections → `T[]` (empty = `[]`). */
 
@@ -40,23 +44,9 @@ export interface CompositeFoodWithIngredientsJoinRow {
   fats: number | null;
 }
 
-export interface CreateCompositeFoodData {
-  name: string;
-  servingSize: number;
-  unit: TIngredientUnit;
-  ingredients: Array<{ ingredientId: string; amount: number }>;
-}
-
-export interface UpdateCompositeFoodInput {
-  name?: string;
-  servingSize?: number;
-  unit?: TIngredientUnit;
-  ingredients?: Array<{ ingredientId: string; amount: number }>;
-}
-
 export const compositeFoodRepository = {
   async createWithIngredients(
-    data: CreateCompositeFoodData,
+    createCompositeFoodInput: CreateCompositeFoodInput,
   ): Promise<CompositeFoodRow> {
     const compositeFood = await getDb()
       .transaction()
@@ -64,9 +54,9 @@ export const compositeFoodRepository = {
         const cf = await transaction
           .insertInto("composite_food")
           .values({
-            name: data.name,
-            serving_size: data.servingSize,
-            unit: data.unit,
+            name: createCompositeFoodInput.name,
+            serving_size: createCompositeFoodInput.servingSize,
+            unit: createCompositeFoodInput.unit,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -74,10 +64,10 @@ export const compositeFoodRepository = {
         await transaction
           .insertInto("composite_food_ingredient")
           .values(
-            data.ingredients.map((r) => ({
+            createCompositeFoodInput.ingredients.map((ingredientRef) => ({
               composite_food_id: cf.id,
-              ingredient_id: r.ingredientId,
-              amount: r.amount,
+              ingredient_id: ingredientRef.ingredientId,
+              amount: ingredientRef.amount,
             })),
           )
           .execute();
@@ -190,16 +180,18 @@ export const compositeFoodRepository = {
 
   async update(
     id: string,
-    input: UpdateCompositeFoodInput,
+    updateCompositeFoodInput: UpdateCompositeFoodInput,
   ): Promise<CompositeFoodRow | null> {
     const row = await getDb()
       .transaction()
       .execute(async (tx) => {
         const metadataUpdate: Record<string, unknown> = {};
-        if (input.name !== undefined) metadataUpdate.name = input.name;
-        if (input.servingSize !== undefined)
-          metadataUpdate.serving_size = input.servingSize;
-        if (input.unit !== undefined) metadataUpdate.unit = input.unit;
+        if (updateCompositeFoodInput.name !== undefined)
+          metadataUpdate.name = updateCompositeFoodInput.name;
+        if (updateCompositeFoodInput.servingSize !== undefined)
+          metadataUpdate.serving_size = updateCompositeFoodInput.servingSize;
+        if (updateCompositeFoodInput.unit !== undefined)
+          metadataUpdate.unit = updateCompositeFoodInput.unit;
 
         if (Object.keys(metadataUpdate).length > 0) {
           const updated = await tx
@@ -211,7 +203,7 @@ export const compositeFoodRepository = {
           if (!updated) return null;
         }
 
-        if (input.ingredients !== undefined) {
+        if (updateCompositeFoodInput.ingredients !== undefined) {
           await tx
             .deleteFrom("composite_food_ingredient")
             .where("composite_food_id", "=", id)
@@ -220,10 +212,10 @@ export const compositeFoodRepository = {
           await tx
             .insertInto("composite_food_ingredient")
             .values(
-              input.ingredients.map((r) => ({
+              updateCompositeFoodInput.ingredients.map((ingredientRef) => ({
                 composite_food_id: id,
-                ingredient_id: r.ingredientId,
-                amount: r.amount,
+                ingredient_id: ingredientRef.ingredientId,
+                amount: ingredientRef.amount,
               })),
             )
             .execute();

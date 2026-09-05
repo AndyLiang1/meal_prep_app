@@ -4,7 +4,7 @@ import type {
   CompositeFoodWithIngredientsJoinRow,
   CompositeIngredientJoinRow,
 } from "../../repositories/compositeFood/compositeFoodRepository.js";
-import type { CreateCompositeFoodInput } from "./compositeFoodService.js";
+import type { CreateCompositeFoodInput } from "../../schemas/compositeFood.js";
 import { mockCreateIngredientData } from "../../repositories/ingredient/ingredientRepository.fixtures.js";
 
 export const MOCK_COMPOSITE_FOOD_ID_1 = "composite-food-1-id";

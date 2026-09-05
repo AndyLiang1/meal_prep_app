@@ -5,27 +5,11 @@ import {
 } from "../../repositories/compositeFood/compositeFoodRepository.js";
 import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
 import type { TCompositeFood } from "../../types.js";
-
 import type { TIngredientUnit } from "../../schemas/ingredient.js";
-
-export interface IngredientRef {
-  ingredientId: string;
-  amount: number;
-}
-
-export interface CreateCompositeFoodInput {
-  name: string;
-  servingSize: number;
-  unit: TIngredientUnit;
-  ingredients: IngredientRef[];
-}
-
-export interface UpdateCompositeFoodInput {
-  name?: string;
-  servingSize?: number;
-  unit?: TIngredientUnit;
-  ingredients?: IngredientRef[];
-}
+import type {
+  CreateCompositeFoodInput,
+  UpdateCompositeFoodInput,
+} from "../../schemas/compositeFood.js";
 
 function round2(value: number): number {
   const scaled = Math.round(value * 100);
