@@ -182,9 +182,9 @@ export const compositeFoodRepository = {
     id: string,
     updateCompositeFoodInput: UpdateCompositeFoodInput,
   ): Promise<CompositeFoodRow | null> {
-    const row = await getDb()
+    const updatedCompositeFood = await getDb()
       .transaction()
-      .execute(async (tx) => {
+      .execute(async (transaction) => {
         const compositeFoodUpdate: Record<string, unknown> = {
           updated_at: new Date(),
         };
@@ -198,7 +198,7 @@ export const compositeFoodRepository = {
           compositeFoodUpdate.unit = updateCompositeFoodInput.unit;
         }
 
-        const updatedCompositeFoodRow = await tx
+        const updatedCompositeFoodRow = await transaction
           .updateTable("composite_food")
           .set(compositeFoodUpdate)
           .where("id", "=", id)
@@ -207,12 +207,12 @@ export const compositeFoodRepository = {
         if (!updatedCompositeFoodRow) return null;
 
         if (updateCompositeFoodInput.ingredients !== undefined) {
-          await tx
+          await transaction
             .deleteFrom("composite_food_ingredient")
             .where("composite_food_id", "=", id)
             .execute();
 
-          await tx
+          await transaction
             .insertInto("composite_food_ingredient")
             .values(
               updateCompositeFoodInput.ingredients.map((ingredientRef) => ({
@@ -224,14 +224,9 @@ export const compositeFoodRepository = {
             .execute();
         }
 
-        const compositeFood = await tx
-          .selectFrom("composite_food")
-          .selectAll()
-          .where("id", "=", id)
-          .executeTakeFirst();
-        return compositeFood ?? null;
+        return updatedCompositeFoodRow;
       });
-    return row;
+    return updatedCompositeFood;
   },
 
   async delete(id: string): Promise<boolean> {

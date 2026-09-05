@@ -4,7 +4,10 @@ import type {
   CreateCompositeFoodInput,
   UpdateCompositeFoodInput,
 } from "../../schemas/compositeFood.js";
-import { compositeFoodRepository } from "../../repositories/compositeFood/compositeFoodRepository.js";
+import {
+  compositeFoodRepository,
+  type CompositeFoodWithIngredientsJoinRow,
+} from "../../repositories/compositeFood/compositeFoodRepository.js";
 import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
 import { MISSING_ID } from "../../constants.js";
 import type { TCompositeFood } from "../../types.js";
@@ -173,18 +176,20 @@ describe("compositeFoodService", () => {
 
   describe("update", () => {
     it("should return null when the composite food does not exist", async () => {
-      mockedCompositeFoodRepo.findById.mockResolvedValue(null);
+      mockedCompositeFoodRepo.update.mockResolvedValue(null);
 
-      const result = await compositeFoodService.update(MISSING_ID, {
+      const updatedCompositeFood = await compositeFoodService.update(MISSING_ID, {
         name: "composite-food-1",
       });
 
-      expect(result).toBeNull();
-      expect(mockedCompositeFoodRepo.update).not.toHaveBeenCalled();
+      expect(updatedCompositeFood).toBeNull();
+      expect(mockedCompositeFoodRepo.update).toHaveBeenCalledWith(MISSING_ID, {
+        name: "composite-food-1",
+      });
+      expect(mockedCompositeFoodRepo.findByIdWithIngredients).not.toHaveBeenCalled();
     });
 
     it("should update the name without touching ingredients", async () => {
-      mockedCompositeFoodRepo.findById.mockResolvedValue(mockCompositeFoodRow1);
       mockedCompositeFoodRepo.update.mockResolvedValue({
         ...mockCompositeFoodRow1,
         name: "composite-food-1-renamed",
@@ -215,7 +220,6 @@ describe("compositeFoodService", () => {
     });
 
     it("should add new ingredients correctly ", async () => {
-      mockedCompositeFoodRepo.findById.mockResolvedValue(mockCompositeFoodRow1);
       mockedIngredientRepo.findExistingIds.mockResolvedValue([
         MOCK_INGREDIENT_ID_1,
         MOCK_INGREDIENT_ID_2,
@@ -282,7 +286,6 @@ describe("compositeFoodService", () => {
     });
 
     it("should update existing ingredients correctly", async () => {
-      mockedCompositeFoodRepo.findById.mockResolvedValue(mockCompositeFoodRow1);
       mockedIngredientRepo.findExistingIds.mockResolvedValue([
         MOCK_INGREDIENT_ID_1,
         MOCK_INGREDIENT_ID_2,
@@ -325,7 +328,6 @@ describe("compositeFoodService", () => {
     });
 
     it("should remove ingredients correctly", async () => {
-      mockedCompositeFoodRepo.findById.mockResolvedValue(mockCompositeFoodRow1);
       mockedIngredientRepo.findExistingIds.mockResolvedValue([MOCK_INGREDIENT_ID_1]);
       mockedCompositeFoodRepo.update.mockResolvedValue(mockCompositeFoodRow1);
       mockedCompositeFoodRepo.findByIdWithIngredients.mockResolvedValue([
@@ -355,7 +357,6 @@ describe("compositeFoodService", () => {
     });
 
     it("should be able to update the metadata and add, update, remove ingredients all at once", async () => {
-      mockedCompositeFoodRepo.findById.mockResolvedValue(mockCompositeFoodRow1);
       mockedIngredientRepo.findExistingIds.mockResolvedValue([
         MOCK_INGREDIENT_ID_1,
         MOCK_INGREDIENT_ID_3,
@@ -428,8 +429,22 @@ describe("compositeFoodService", () => {
       });
     });
 
+    it("should return null when the composite food is missing from the post-update fetch", async () => {
+      mockedCompositeFoodRepo.update.mockResolvedValue(mockCompositeFoodRow1);
+      const missingCompositeFoodJoinRows: CompositeFoodWithIngredientsJoinRow[] = [];
+      mockedCompositeFoodRepo.findByIdWithIngredients.mockResolvedValue(
+        missingCompositeFoodJoinRows,
+      );
+
+      const updatedCompositeFood = await compositeFoodService.update(
+        MOCK_COMPOSITE_FOOD_ID_1,
+        { name: "composite-food-1-renamed" },
+      );
+
+      expect(updatedCompositeFood).toBeNull();
+    });
+
     it("should throw when an ingredient id does not exist", async () => {
-      mockedCompositeFoodRepo.findById.mockResolvedValue(mockCompositeFoodRow1);
       mockedIngredientRepo.findExistingIds.mockResolvedValue([]);
 
       const input: UpdateCompositeFoodInput = {

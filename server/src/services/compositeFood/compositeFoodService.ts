@@ -160,22 +160,24 @@ export const compositeFoodService = {
     id: string,
     input: UpdateCompositeFoodInput,
   ): Promise<TCompositeFood | null> {
-    const existingCompositeFood = await compositeFoodRepository.findById(id);
-    if (!existingCompositeFood) return null;
-
     if (input.ingredients) {
-      const uniqueIds = [
+      const uniqueIngredientIds = [
         ...new Set(input.ingredients.map((ingredient) => ingredient.ingredientId)),
       ];
-      const existingIds = await ingredientRepository.findExistingIds(uniqueIds);
-      if (existingIds.length !== uniqueIds.length) {
+      const existingIngredientIds =
+        await ingredientRepository.findExistingIds(uniqueIngredientIds);
+      if (existingIngredientIds.length !== uniqueIngredientIds.length) {
         throw new Error("One or more ingredients not found");
       }
     }
 
-    await compositeFoodRepository.update(id, input);
-    const joinRows = await compositeFoodRepository.findByIdWithIngredients(id);
-    const compositeFoods = buildCompositeFoods(joinRows);
+    const updatedCompositeFoodRow = await compositeFoodRepository.update(id, input);
+    if (!updatedCompositeFoodRow) return null;
+
+    const updatedCompositeFoodJoinRows =
+      await compositeFoodRepository.findByIdWithIngredients(id);
+    if (updatedCompositeFoodJoinRows.length === 0) return null;
+    const compositeFoods = buildCompositeFoods(updatedCompositeFoodJoinRows);
     return compositeFoods[0];
   },
 

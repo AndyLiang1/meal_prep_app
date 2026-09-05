@@ -308,6 +308,18 @@ describe("compositeFoodRepository", () => {
       expect(result).toBeNull();
     });
 
+    it("should return null when updating only ingredients on a missing composite food", async () => {
+      const ingredient = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-missing-composite-food" }),
+      );
+
+      const updatedCompositeFood = await compositeFoodRepository.update(MISSING_ID, {
+        ingredients: [{ ingredientId: ingredient.id, amount: 100 }],
+      });
+
+      expect(updatedCompositeFood).toBeNull();
+    });
+
     it("should bump updated_at when metadata is updated", async () => {
       const ingredient = await ingredientRepository.create(
         generateIngredientInput({ name: "ingredient-updated-at" }),
