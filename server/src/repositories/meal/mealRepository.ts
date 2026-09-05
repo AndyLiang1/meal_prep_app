@@ -120,6 +120,7 @@ export const mealRepository = {
   async update(
     mealId: string,
     updateMealInput: { name?: string; sortOrder?: number } = {},
+    transaction?: DatabaseTransaction,
   ): Promise<MealRow | null> {
     const mealSetValues: {
       updated_at: Date;
@@ -135,7 +136,8 @@ export const mealRepository = {
       mealSetValues.sort_order = updateMealInput.sortOrder;
     }
 
-    const updatedMealRecord = await getDb()
+    const databaseConnection = transaction ?? getDb();
+    const updatedMealRecord = await databaseConnection
       .updateTable("meal")
       .set(mealSetValues)
       .where("id", "=", mealId)

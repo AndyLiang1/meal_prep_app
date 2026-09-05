@@ -13,6 +13,7 @@ import {
   compositeFoodRepository,
   type CompositeFoodWithIngredientsJoinRow,
 } from "../../repositories/compositeFood/compositeFoodRepository.js";
+import { getDb } from "../../db/database.js";
 import type { CreateMealData } from "../../schemas/meal.js";
 import type {
   TIngredient,
@@ -326,11 +327,15 @@ export const mealService = {
       throw new Error("Meal IDs do not match the meals in this group");
     }
 
-    await Promise.all(
-      mealIds.map((mealId, index) =>
-        mealRepository.update(mealId, { sortOrder: index }),
-      ),
-    );
+    await getDb()
+      .transaction()
+      .execute(async (transaction) => {
+        await Promise.all(
+          mealIds.map((mealId, sortOrder) =>
+            mealRepository.update(mealId, { sortOrder }, transaction),
+          ),
+        );
+      });
   },
 
   async delete(id: string): Promise<boolean> {

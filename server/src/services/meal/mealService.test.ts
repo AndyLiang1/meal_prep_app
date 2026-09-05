@@ -8,6 +8,7 @@ import {
 import { mealGroupRepository } from "../../repositories/mealGroup/mealGroupRepository.js";
 import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
 import { compositeFoodRepository } from "../../repositories/compositeFood/compositeFoodRepository.js";
+import { getDb } from "../../db/database.js";
 import type { TMeal } from "../../types.js";
 import { MISSING_ID } from "../../constants.js";
 import {
@@ -26,6 +27,12 @@ import {
   mockExpectedTCompositeFood1,
   mockExpectedTCompositeFood2,
 } from "../compositeFood/compositeFoodService.fixtures.js";
+
+vi.mock("../../db/database.js", () => {
+  return {
+    getDb: vi.fn(),
+  };
+});
 
 vi.mock("../../repositories/meal/mealRepository.js", () => {
   return {
@@ -67,6 +74,7 @@ vi.mock("../../repositories/compositeFood/compositeFoodRepository.js", () => {
   };
 });
 
+const mockedGetDb = vi.mocked(getDb, true);
 const mockedMealRepo = vi.mocked(mealRepository, true);
 const mockedMealGroupRepo = vi.mocked(mealGroupRepository, true);
 const mockedIngredientRepo = vi.mocked(ingredientRepository, true);
@@ -488,12 +496,31 @@ describe("mealService", () => {
 
       mockedMealRepo.findByMealGroupId.mockResolvedValue(existingMeals);
       mockedMealRepo.update.mockResolvedValue(null);
+      const mockTransaction = {};
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
 
       await mealService.reorder(MOCK_MEAL_GROUP_ID, ["meal-c", "meal-a", "meal-b"]);
 
-      expect(mockedMealRepo.update).toHaveBeenCalledWith("meal-c", { sortOrder: 0 });
-      expect(mockedMealRepo.update).toHaveBeenCalledWith("meal-a", { sortOrder: 1 });
-      expect(mockedMealRepo.update).toHaveBeenCalledWith("meal-b", { sortOrder: 2 });
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-c",
+        { sortOrder: 0 },
+        mockTransaction,
+      );
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-a",
+        { sortOrder: 1 },
+        mockTransaction,
+      );
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-b",
+        { sortOrder: 2 },
+        mockTransaction,
+      );
     });
 
     it("should throw when meal IDs contain duplicates", async () => {

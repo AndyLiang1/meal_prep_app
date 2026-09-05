@@ -310,6 +310,40 @@ describe("mealRepository", () => {
       });
       expect(result).toBeNull();
     });
+
+    it("should roll back sort order updates if the transaction is aborted", async () => {
+      const firstMeal = await mealRepository.create({
+        name: "meal-sort-first",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 0,
+      });
+      const secondMeal = await mealRepository.create({
+        name: "meal-sort-second",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 1,
+      });
+
+      await expect(
+        getDb()
+          .transaction()
+          .execute(async (transaction) => {
+            await mealRepository.update(firstMeal.id, { sortOrder: 1 }, transaction);
+            await mealRepository.update(secondMeal.id, { sortOrder: 0 }, transaction);
+            throw new Error("forced rollback");
+          }),
+      ).rejects.toThrow("forced rollback");
+
+      const mealsAfterRollback =
+        await mealRepository.findByMealGroupId(sharedMealGroupId);
+      const mealSortOrders = mealsAfterRollback.map((meal) => ({
+        id: meal.id,
+        sort_order: meal.sort_order,
+      }));
+      expect(mealSortOrders).toEqual([
+        { id: firstMeal.id, sort_order: 0 },
+        { id: secondMeal.id, sort_order: 1 },
+      ]);
+    });
   });
 
   describe("replaceFoods", () => {
