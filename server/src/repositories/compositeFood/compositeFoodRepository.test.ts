@@ -308,6 +308,63 @@ describe("compositeFoodRepository", () => {
       expect(result).toBeNull();
     });
 
+    it("should bump updated_at when metadata is updated", async () => {
+      const ingredient = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-updated-at" }),
+      );
+      const persistedCompositeFood =
+        await compositeFoodRepository.createWithIngredients({
+          name: "before-updated-at",
+          servingSize: 100,
+          unit: "GRAM",
+          ingredients: [{ ingredientId: ingredient.id, amount: 100 }],
+        });
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
+
+      const updatedCompositeFood = await compositeFoodRepository.update(
+        persistedCompositeFood.id,
+        { name: "after-updated-at" },
+      );
+
+      expect(updatedCompositeFood).not.toBeNull();
+      expect(updatedCompositeFood!.updated_at.getTime()).toBeGreaterThan(
+        persistedCompositeFood.updated_at.getTime(),
+      );
+    });
+
+    it("should bump updated_at when only ingredients are updated", async () => {
+      const originalIngredient = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-updated-at-original" }),
+      );
+      const replacementIngredient = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-updated-at-replacement" }),
+      );
+      const persistedCompositeFood =
+        await compositeFoodRepository.createWithIngredients({
+          name: "ingredients-only-updated-at",
+          servingSize: 100,
+          unit: "GRAM",
+          ingredients: [{ ingredientId: originalIngredient.id, amount: 100 }],
+        });
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
+
+      const updatedCompositeFood = await compositeFoodRepository.update(
+        persistedCompositeFood.id,
+        { ingredients: [{ ingredientId: replacementIngredient.id, amount: 250 }] },
+      );
+
+      expect(updatedCompositeFood).not.toBeNull();
+      expect(updatedCompositeFood!.updated_at.getTime()).toBeGreaterThan(
+        persistedCompositeFood.updated_at.getTime(),
+      );
+    });
+
     it("updates the name without changing ingredients", async () => {
       const ingredient = await ingredientRepository.create(
         generateIngredientInput({ name: "ingredient-rename" }),

@@ -185,23 +185,26 @@ export const compositeFoodRepository = {
     const row = await getDb()
       .transaction()
       .execute(async (tx) => {
-        const metadataUpdate: Record<string, unknown> = {};
-        if (updateCompositeFoodInput.name !== undefined)
-          metadataUpdate.name = updateCompositeFoodInput.name;
-        if (updateCompositeFoodInput.servingSize !== undefined)
-          metadataUpdate.serving_size = updateCompositeFoodInput.servingSize;
-        if (updateCompositeFoodInput.unit !== undefined)
-          metadataUpdate.unit = updateCompositeFoodInput.unit;
-
-        if (Object.keys(metadataUpdate).length > 0) {
-          const updated = await tx
-            .updateTable("composite_food")
-            .set(metadataUpdate)
-            .where("id", "=", id)
-            .returningAll()
-            .executeTakeFirst();
-          if (!updated) return null;
+        const compositeFoodUpdate: Record<string, unknown> = {
+          updated_at: new Date(),
+        };
+        if (updateCompositeFoodInput.name !== undefined) {
+          compositeFoodUpdate.name = updateCompositeFoodInput.name;
         }
+        if (updateCompositeFoodInput.servingSize !== undefined) {
+          compositeFoodUpdate.serving_size = updateCompositeFoodInput.servingSize;
+        }
+        if (updateCompositeFoodInput.unit !== undefined) {
+          compositeFoodUpdate.unit = updateCompositeFoodInput.unit;
+        }
+
+        const updatedCompositeFoodRow = await tx
+          .updateTable("composite_food")
+          .set(compositeFoodUpdate)
+          .where("id", "=", id)
+          .returningAll()
+          .executeTakeFirst();
+        if (!updatedCompositeFoodRow) return null;
 
         if (updateCompositeFoodInput.ingredients !== undefined) {
           await tx
