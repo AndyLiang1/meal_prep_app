@@ -54,6 +54,7 @@ vi.mock("../../repositories/mealGroup/mealGroupRepository.js", () => {
   return {
     mealGroupRepository: {
       findById: vi.fn(),
+      findAndLockById: vi.fn(),
     },
   };
 });
@@ -96,6 +97,16 @@ describe("mealService", () => {
       created_at: new Date("2026-06-01T12:00:00.000Z"),
       updated_at: new Date("2026-06-01T12:00:00.000Z"),
     };
+    const mockTransaction = {};
+
+    beforeEach(() => {
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
+    });
 
     it("should create an empty meal belonging to a meal group", async () => {
       const emptyMealRow: MealRow = {
@@ -107,7 +118,7 @@ describe("mealService", () => {
         updated_at: new Date("2026-06-01T12:00:00.000Z"),
       };
 
-      mockedMealGroupRepo.findById.mockResolvedValue(mockMealGroup);
+      mockedMealGroupRepo.findAndLockById.mockResolvedValue(mockMealGroup);
       mockedMealRepo.findByMealGroupId.mockResolvedValue([]);
       mockedMealRepo.create.mockResolvedValue(emptyMealRow);
 
@@ -123,11 +134,18 @@ describe("mealService", () => {
         sortOrder: 0,
         foods: [],
       });
-      expect(mockedMealRepo.create).toHaveBeenCalledWith({
-        name: "Empty Meal",
-        mealGroupId: MOCK_MEAL_GROUP_ID,
-        sortOrder: 0,
-      });
+      expect(mockedMealGroupRepo.findAndLockById).toHaveBeenCalledWith(
+        MOCK_MEAL_GROUP_ID,
+        mockTransaction,
+      );
+      expect(mockedMealRepo.create).toHaveBeenCalledWith(
+        {
+          name: "Empty Meal",
+          mealGroupId: MOCK_MEAL_GROUP_ID,
+          sortOrder: 0,
+        },
+        mockTransaction,
+      );
     });
 
     it("should drop sortOrder to the lowest available integer", async () => {
@@ -140,7 +158,7 @@ describe("mealService", () => {
         updated_at: new Date("2026-06-01T12:00:00.000Z"),
       };
 
-      mockedMealGroupRepo.findById.mockResolvedValue(mockMealGroup);
+      mockedMealGroupRepo.findAndLockById.mockResolvedValue(mockMealGroup);
       mockedMealRepo.findByMealGroupId.mockResolvedValue([existingMealAtZero]);
       mockedMealRepo.create.mockResolvedValue({
         id: "meal-2-id",
@@ -156,24 +174,27 @@ describe("mealService", () => {
         mealGroupId: MOCK_MEAL_GROUP_ID,
       });
 
-      expect(mockedMealRepo.create).toHaveBeenCalledWith({
-        name: "Meal 2",
-        mealGroupId: MOCK_MEAL_GROUP_ID,
-        sortOrder: 1,
-      });
+      expect(mockedMealRepo.create).toHaveBeenCalledWith(
+        {
+          name: "Meal 2",
+          mealGroupId: MOCK_MEAL_GROUP_ID,
+          sortOrder: 1,
+        },
+        mockTransaction,
+      );
     });
 
     it("should throw when the meal group does not exist", async () => {
-      mockedMealGroupRepo.findById.mockResolvedValue(null);
+      mockedMealGroupRepo.findAndLockById.mockResolvedValue(null);
 
       await expect(
         mealService.create({
           name: "Bad Meal",
           mealGroupId: MISSING_ID,
-          sortOrder: 0,
         }),
       ).rejects.toThrow("Meal group not found");
 
+      expect(mockedMealRepo.findByMealGroupId).not.toHaveBeenCalled();
       expect(mockedMealRepo.create).not.toHaveBeenCalled();
     });
   });

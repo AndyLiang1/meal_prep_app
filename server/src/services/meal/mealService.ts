@@ -240,24 +240,35 @@ export function toMeal(mealRow: MealRow, foods: TMealFood[] = []): TMeal {
 
 export const mealService = {
   async create(input: CreateMealData): Promise<TMeal> {
-    const mealGroup = await mealGroupRepository.findById(input.mealGroupId);
-    if (!mealGroup) {
-      throw new Error("Meal group not found");
-    }
+    const createdMeal = await getDb()
+      .transaction()
+      .execute(async (transaction) => {
+        const mealGroup = await mealGroupRepository.findAndLockById(
+          input.mealGroupId,
+          transaction,
+        );
+        if (!mealGroup) {
+          throw new Error("Meal group not found");
+        }
 
-    const existingMeals = await mealRepository.findByMealGroupId(input.mealGroupId);
-    const existingSortOrders = new Set(
-      existingMeals.map((mealRow) => mealRow.sort_order),
-    );
-    const resolvedSortOrder = findLowestAvailableSortOrder(existingSortOrders);
+        const existingMeals = await mealRepository.findByMealGroupId(input.mealGroupId);
+        const existingSortOrders = new Set(
+          existingMeals.map((mealRow) => mealRow.sort_order),
+        );
+        const resolvedSortOrder = findLowestAvailableSortOrder(existingSortOrders);
 
-    const mealRecord = await mealRepository.create({
-      name: input.name,
-      mealGroupId: input.mealGroupId,
-      sortOrder: resolvedSortOrder,
-    });
+        const mealRecord = await mealRepository.create(
+          {
+            name: input.name,
+            mealGroupId: input.mealGroupId,
+            sortOrder: resolvedSortOrder,
+          },
+          transaction,
+        );
 
-    const createdMeal = toMeal(mealRecord);
+        const meal = toMeal(mealRecord);
+        return meal;
+      });
     return createdMeal;
   },
 

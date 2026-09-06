@@ -67,6 +67,26 @@ export const mealGroupRepository = {
     return row ?? null;
   },
 
+  /**
+   * Same as `findById`, but locks the row until `transaction` commits
+   * (`SELECT … FOR UPDATE`). A transaction alone does not stop two creates from
+   * reading the same sort orders and inserting the same next value; this lock
+   * makes the second create wait, then see the first meal before it picks a
+   * sort order.
+   */
+  async findAndLockById(
+    mealGroupId: string,
+    transaction: DatabaseTransaction,
+  ): Promise<MealGroupRow | null> {
+    const lockedMealGroup = await transaction
+      .selectFrom("meal_group")
+      .selectAll()
+      .where("id", "=", mealGroupId)
+      .forUpdate()
+      .executeTakeFirst();
+    return lockedMealGroup ?? null;
+  },
+
   async unsetAllDefaults(exceptId?: string): Promise<void> {
     let query = getDb()
       .updateTable("meal_group")

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { sql } from "kysely";
 import { mealGroupRepository } from "./mealGroupRepository.js";
 import type { CreateMealGroupData, MealGroupRow } from "./mealGroupRepository.js";
 import { MISSING_ID, UUID_REGEX } from "../../constants.js";
@@ -91,6 +92,58 @@ describe("mealGroupRepository", () => {
 
     it("returns null when not found", async () => {
       expect(await mealGroupRepository.findById(MISSING_ID)).toBeNull();
+    });
+  });
+
+  describe("findAndLockById", () => {
+    it("should return the row when it exists", async () => {
+      const mealGroup = await createTestMealGroup("meal-group-lock");
+      const lockedMealGroup = await getDb()
+        .transaction()
+        .execute((transaction) =>
+          mealGroupRepository.findAndLockById(mealGroup.id, transaction),
+        );
+      expect(lockedMealGroup).toEqual(mealGroup);
+    });
+
+    it("should return null when not found", async () => {
+      const lockedMealGroup = await getDb()
+        .transaction()
+        .execute((transaction) =>
+          mealGroupRepository.findAndLockById(MISSING_ID, transaction),
+        );
+      expect(lockedMealGroup).toBeNull();
+    });
+
+    it("should hold a row lock until the transaction commits", async () => {
+      const mealGroup = await createTestMealGroup("meal-group-lock-contend");
+
+      // Hold FOR UPDATE on the group for the whole outer transaction.
+      await getDb()
+        .transaction()
+        .execute(async (holdingTransaction) => {
+          const lockedMealGroup = await mealGroupRepository.findAndLockById(
+            mealGroup.id,
+            holdingTransaction,
+          );
+          expect(lockedMealGroup).toEqual(mealGroup);
+
+          // A second transaction must wait for that lock. Cap the wait so the
+          // test fails fast with a lock timeout instead of hanging — proof the
+          // first lock is still held (a plain SELECT would return immediately).
+          await expect(
+            getDb()
+              .transaction()
+              .execute(async (waitingTransaction) => {
+                await sql`SET LOCAL lock_timeout = '100ms'`.execute(waitingTransaction);
+                const contendedMealGroup = await mealGroupRepository.findAndLockById(
+                  mealGroup.id,
+                  waitingTransaction,
+                );
+                return contendedMealGroup;
+              }),
+          ).rejects.toThrow(/lock timeout/i);
+        });
     });
   });
 
