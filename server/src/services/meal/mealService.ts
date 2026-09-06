@@ -251,7 +251,10 @@ export const mealService = {
           throw new Error("Meal group not found");
         }
 
-        const existingMeals = await mealRepository.findByMealGroupId(input.mealGroupId);
+        const existingMeals = await mealRepository.findByMealGroupId(
+          input.mealGroupId,
+          transaction,
+        );
         const existingSortOrders = new Set(
           existingMeals.map((mealRow) => mealRow.sort_order),
         );

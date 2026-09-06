@@ -148,6 +148,29 @@ describe("mealService", () => {
       );
     });
 
+    it("should read existing meals on the same transaction used to lock and insert", async () => {
+      mockedMealGroupRepo.findAndLockById.mockResolvedValue(mockMealGroup);
+      mockedMealRepo.findByMealGroupId.mockResolvedValue([]);
+      mockedMealRepo.create.mockResolvedValue({
+        id: "meal-1-id",
+        name: "Empty Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 0,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      });
+
+      await mealService.create({
+        name: "Empty Meal",
+        mealGroupId: MOCK_MEAL_GROUP_ID,
+      });
+
+      expect(mockedMealRepo.findByMealGroupId).toHaveBeenCalledWith(
+        MOCK_MEAL_GROUP_ID,
+        mockTransaction, // ensure the transaction is passed to the repository
+      );
+    });
+
     it("should drop sortOrder to the lowest available integer", async () => {
       const existingMealAtZero: MealRow = {
         id: "existing-meal-id-0",

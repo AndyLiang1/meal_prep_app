@@ -77,8 +77,12 @@ export const mealRepository = {
     return mealRows;
   },
 
-  async findByMealGroupId(mealGroupId: string): Promise<MealRow[]> {
-    const mealRows = await getDb()
+  async findByMealGroupId(
+    mealGroupId: string,
+    transaction?: DatabaseTransaction,
+  ): Promise<MealRow[]> {
+    const databaseConnection = transaction ?? getDb();
+    const mealRows = await databaseConnection
       .selectFrom("meal")
       .selectAll()
       .where("meal_group_id", "=", mealGroupId)

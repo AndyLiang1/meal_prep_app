@@ -219,6 +219,48 @@ describe("mealRepository", () => {
       expect(meals.map((meal) => meal.name)).toEqual(["meal-a", "meal-b", "meal-c"]);
     });
 
+    // We need this test because findByMealGroupId can take an optional
+    // transaction, and we have to prove, when that optional transaction is provided,
+    // findByMealGroupId uses the same db connection as the transaction.
+    //
+    // Think of a transaction as a private draft. We insert a meal into that
+    // draft but do not save it yet (no COMMIT). Anyone else looking at the
+    // database should not see that meal.
+    //
+    // 1. Call findByMealGroupId with the transaction → we should see the meal,
+    //    because we are looking at our own draft.
+    // 2. Call findByMealGroupId without it (plain getDb()) → we should see
+    //    nothing, because that is a different connection looking at the saved
+    //    database.
+    //
+    // If both calls see the meal, the transaction argument was ignored and we
+    // are still reading through getDb().
+    it("should see an uncommitted insert when called with that transaction", async () => {
+      await getDb()
+        .transaction()
+        .execute(async (transaction) => {
+          await mealRepository.create(
+            {
+              name: "uncommitted-meal",
+              mealGroupId: sharedMealGroupId,
+              sortOrder: 0,
+            },
+            transaction,
+          );
+
+          const mealsInTransaction = await mealRepository.findByMealGroupId(
+            sharedMealGroupId,
+            transaction,
+          );
+          const mealsOutsideTransaction =
+            await mealRepository.findByMealGroupId(sharedMealGroupId);
+
+          expect(mealsInTransaction).toHaveLength(1);
+          expect(mealsInTransaction[0].name).toBe("uncommitted-meal");
+          expect(mealsOutsideTransaction).toEqual([]);
+        });
+    });
+
     it("should exclude meals belonging to a different group", async () => {
       const otherGroup = await createTestMealGroup("other-group");
       await mealRepository.create({
