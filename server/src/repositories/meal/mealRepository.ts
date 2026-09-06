@@ -179,8 +179,8 @@ export const mealRepository = {
     return replacedMealFoodRows;
   },
 
-  async delete(mealId: string): Promise<boolean> {
-    const deleteResult = await getDb()
+  async delete(mealId: string, transaction: DatabaseTransaction): Promise<boolean> {
+    const deleteResult = await transaction
       .deleteFrom("meal")
       .where("id", "=", mealId)
       .executeTakeFirst();

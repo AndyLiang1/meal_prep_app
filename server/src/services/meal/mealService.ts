@@ -344,20 +344,32 @@ export const mealService = {
       return false;
     }
 
-    const deleted = await mealRepository.delete(id);
-    if (deleted) {
-      const remainingMeals = await mealRepository.findByMealGroupId(
-        mealToDelete.meal_group_id,
-      );
-      const mealsToShift = remainingMeals.filter(
-        (meal) => meal.sort_order > mealToDelete.sort_order,
-      );
-      await Promise.all(
-        mealsToShift.map((meal) =>
-          mealRepository.update(meal.id, { sortOrder: meal.sort_order - 1 }),
-        ),
-      );
-    }
+    const mealsInGroup = await mealRepository.findByMealGroupId(
+      mealToDelete.meal_group_id,
+    );
+    const mealsToShift = mealsInGroup.filter(
+      (mealRow) => mealRow.sort_order > mealToDelete.sort_order,
+    );
+
+    const deleted = await getDb()
+      .transaction()
+      .execute(async (transaction) => {
+        const deletedMeal = await mealRepository.delete(id, transaction);
+        if (!deletedMeal) {
+          return false;
+        }
+
+        await Promise.all(
+          mealsToShift.map((mealRow) =>
+            mealRepository.update(
+              mealRow.id,
+              { sortOrder: mealRow.sort_order - 1 },
+              transaction,
+            ),
+          ),
+        );
+        return true;
+      });
     return deleted;
   },
 };

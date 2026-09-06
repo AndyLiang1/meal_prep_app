@@ -611,17 +611,30 @@ describe("mealService", () => {
       };
 
       mockedMealRepo.findById.mockResolvedValue(mealToDelete);
+      mockedMealRepo.findByMealGroupId.mockResolvedValue([
+        mealBelow,
+        mealToDelete,
+        mealAbove,
+      ]);
       mockedMealRepo.delete.mockResolvedValue(true);
-      mockedMealRepo.findByMealGroupId.mockResolvedValue([mealBelow, mealAbove]);
       mockedMealRepo.update.mockResolvedValue(null);
+      const mockTransaction = {};
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
 
       const deleted = await mealService.delete("meal-del-1");
 
       expect(deleted).toBe(true);
-      expect(mockedMealRepo.delete).toHaveBeenCalledWith("meal-del-1");
-      expect(mockedMealRepo.update).toHaveBeenCalledWith("meal-above", {
-        sortOrder: 1,
-      });
+      expect(mockedMealRepo.delete).toHaveBeenCalledWith("meal-del-1", mockTransaction);
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-above",
+        { sortOrder: 1 },
+        mockTransaction,
+      );
       expect(mockedMealRepo.update).not.toHaveBeenCalledWith(
         "meal-below",
         expect.anything(),

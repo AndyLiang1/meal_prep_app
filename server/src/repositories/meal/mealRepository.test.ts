@@ -391,7 +391,9 @@ describe("mealRepository", () => {
     it("should return true and remove the row when it exists", async () => {
       const persistedMeal = await createTestMeal(sharedMealGroupId, "meal-delete");
 
-      const deleted = await mealRepository.delete(persistedMeal.id);
+      const deleted = await getDb()
+        .transaction()
+        .execute((transaction) => mealRepository.delete(persistedMeal.id, transaction));
       expect(deleted).toBe(true);
       expect(await mealRepository.findById(persistedMeal.id)).toBeNull();
     });
@@ -408,7 +410,9 @@ describe("mealRepository", () => {
       const mealFoodRowsBeforeDelete = await mealRepository.findFoodsByMealId(meal.id);
       expect(mealFoodRowsBeforeDelete).toHaveLength(2);
 
-      const deleted = await mealRepository.delete(meal.id);
+      const deleted = await getDb()
+        .transaction()
+        .execute((transaction) => mealRepository.delete(meal.id, transaction));
       expect(deleted).toBe(true);
 
       const mealFoodRowsAfterDelete = await mealRepository.findFoodsByMealId(meal.id);
@@ -416,7 +420,9 @@ describe("mealRepository", () => {
     });
 
     it("should return false when the row does not exist", async () => {
-      const deleted = await mealRepository.delete(MISSING_ID);
+      const deleted = await getDb()
+        .transaction()
+        .execute((transaction) => mealRepository.delete(MISSING_ID, transaction));
       expect(deleted).toBe(false);
     });
   });
