@@ -93,6 +93,22 @@ describe("mealRepository", () => {
       expect(allMeals).toEqual([]);
     });
 
+    it("should reject a second meal in the same group with the same sort_order", async () => {
+      await mealRepository.create({
+        name: "meal-sort-first",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 0,
+      });
+
+      await expect(
+        mealRepository.create({
+          name: "meal-sort-duplicate",
+          mealGroupId: sharedMealGroupId,
+          sortOrder: 0,
+        }),
+      ).rejects.toThrow(/unique/i);
+    });
+
     it("should reject when the meal group does not exist", async () => {
       await expect(
         mealRepository.create({
@@ -423,6 +439,35 @@ describe("mealRepository", () => {
       expect(mealSortOrders).toEqual([
         { id: firstMeal.id, sort_order: 0 },
         { id: secondMeal.id, sort_order: 1 },
+      ]);
+    });
+
+    // We need this test because UNIQUE(meal_group_id, sort_order) is deferred
+    // until COMMIT. Reorder updates one row at a time (B becomes 0 while A
+    // is still 0). An immediate unique check would reject a valid swap.
+    it("should allow swapping sort orders inside one transaction", async () => {
+      const firstMeal = await mealRepository.create({
+        name: "meal-swap-first",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 0,
+      });
+      const secondMeal = await mealRepository.create({
+        name: "meal-swap-second",
+        mealGroupId: sharedMealGroupId,
+        sortOrder: 1,
+      });
+
+      await getDb()
+        .transaction()
+        .execute(async (transaction) => {
+          await mealRepository.update(secondMeal.id, { sortOrder: 0 }, transaction);
+          await mealRepository.update(firstMeal.id, { sortOrder: 1 }, transaction);
+        });
+
+      const mealsAfterSwap = await mealRepository.findByMealGroupId(sharedMealGroupId);
+      expect(mealsAfterSwap.map((mealRow) => mealRow.id)).toEqual([
+        secondMeal.id,
+        firstMeal.id,
       ]);
     });
   });

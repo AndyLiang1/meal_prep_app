@@ -7,10 +7,17 @@ export async function createTestMeal(
   mealName = "meal-default",
   foods: MealFoodRef[] = [],
 ): Promise<MealRow> {
+  const existingMeals = await mealRepository.findByMealGroupId(mealGroupId);
+  const takenSortOrders = new Set(existingMeals.map((mealRow) => mealRow.sort_order));
+  let nextSortOrder = 0;
+  while (takenSortOrders.has(nextSortOrder)) {
+    nextSortOrder += 1;
+  }
+
   const meal = await mealRepository.create({
     name: mealName,
     mealGroupId,
-    sortOrder: 0,
+    sortOrder: nextSortOrder,
   });
 
   if (foods.length === 0) {
