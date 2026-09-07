@@ -619,13 +619,59 @@ describe("mealService", () => {
   });
 
   describe("delete", () => {
+    const mockTransaction = {};
+
+    beforeEach(() => {
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
+    });
+
     it("should return false when the meal does not exist", async () => {
       mockedMealRepo.findById.mockResolvedValue(null);
 
       const deleted = await mealService.delete("non-existent-id");
 
       expect(deleted).toBe(false);
+      expect(mockedMealRepo.findById).toHaveBeenCalledWith(
+        "non-existent-id",
+        mockTransaction,
+      );
+      expect(mockedMealGroupRepo.findAndLockById).not.toHaveBeenCalled();
       expect(mockedMealRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it("should lock the meal group and read meals on the same transaction", async () => {
+      const mealToDelete: MealRow = {
+        id: "meal-del-1",
+        name: "Middle Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 1,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+
+      mockedMealRepo.findById.mockResolvedValue(mealToDelete);
+      mockedMealRepo.findByMealGroupId.mockResolvedValue([mealToDelete]);
+      mockedMealRepo.delete.mockResolvedValue(true);
+
+      await mealService.delete("meal-del-1");
+
+      expect(mockedMealRepo.findById).toHaveBeenCalledWith(
+        "meal-del-1",
+        mockTransaction,
+      );
+      expect(mockedMealGroupRepo.findAndLockById).toHaveBeenCalledWith(
+        MOCK_MEAL_GROUP_ID,
+        mockTransaction,
+      );
+      expect(mockedMealRepo.findByMealGroupId).toHaveBeenCalledWith(
+        MOCK_MEAL_GROUP_ID,
+        mockTransaction,
+      );
     });
 
     it("should delete the meal and decrement sort orders above it", async () => {
@@ -662,13 +708,6 @@ describe("mealService", () => {
       ]);
       mockedMealRepo.delete.mockResolvedValue(true);
       mockedMealRepo.update.mockResolvedValue(null);
-      const mockTransaction = {};
-      mockedGetDb.mockReturnValue({
-        transaction: () => ({
-          execute: (callback: (transaction: unknown) => unknown) =>
-            callback(mockTransaction),
-        }),
-      } as ReturnType<typeof getDb>);
 
       const deleted = await mealService.delete("meal-del-1");
 

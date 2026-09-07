@@ -243,6 +243,8 @@ export const mealService = {
     const createdMeal = await getDb()
       .transaction()
       .execute(async (transaction) => {
+        // Deleting or creating meals depends on the current state of the sort orders in the meal group.
+        // So lock the meal group
         const mealGroup = await mealGroupRepository.findAndLockById(
           input.mealGroupId,
           transaction,
@@ -353,21 +355,29 @@ export const mealService = {
   },
 
   async delete(id: string): Promise<boolean> {
-    const mealToDelete = await mealRepository.findById(id);
-    if (!mealToDelete) {
-      return false;
-    }
-
-    const mealsInGroup = await mealRepository.findByMealGroupId(
-      mealToDelete.meal_group_id,
-    );
-    const mealsToShift = mealsInGroup.filter(
-      (mealRow) => mealRow.sort_order > mealToDelete.sort_order,
-    );
-
     const deleted = await getDb()
       .transaction()
       .execute(async (transaction) => {
+        const mealToDelete = await mealRepository.findById(id, transaction);
+        if (!mealToDelete) {
+          return false;
+        }
+
+        // Deleting or creating meals depends on the current state of the sort orders in the meal group.
+        // So lock the meal group
+        await mealGroupRepository.findAndLockById(
+          mealToDelete.meal_group_id,
+          transaction,
+        );
+
+        const mealsInGroup = await mealRepository.findByMealGroupId(
+          mealToDelete.meal_group_id,
+          transaction,
+        );
+        const mealsToShift = mealsInGroup.filter(
+          (mealRow) => mealRow.sort_order > mealToDelete.sort_order,
+        );
+
         const deletedMeal = await mealRepository.delete(id, transaction);
         if (!deletedMeal) {
           return false;
