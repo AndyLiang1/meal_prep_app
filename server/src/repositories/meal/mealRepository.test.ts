@@ -140,6 +140,48 @@ describe("mealRepository", () => {
       const found = await mealRepository.findById(MISSING_ID);
       expect(found).toBeNull();
     });
+
+    // We need this test because findById can take an optional transaction, and
+    // we have to prove, when that optional transaction is provided, findById
+    // uses the same db connection as the transaction.
+    //
+    // Think of a transaction as a private draft. We insert a meal into that
+    // draft but do not save it yet (no COMMIT). Anyone else looking at the
+    // database should not see that meal.
+    //
+    // 1. Call findById with the transaction → we should see the meal, because
+    //    we are looking at our own draft.
+    // 2. Call findById without it (plain getDb()) → we should see nothing,
+    //    because that is a different connection looking at the saved database.
+    //
+    // If both calls see the meal, the transaction argument was ignored and we
+    // are still reading through getDb().
+    it("should find an uncommitted insert when called with that transaction", async () => {
+      const createdMeal = await getDb()
+        .transaction()
+        .execute(async (transaction) => {
+          const insertedMeal = await mealRepository.create(
+            {
+              name: "uncommitted-by-id",
+              mealGroupId: sharedMealGroupId,
+              sortOrder: 0,
+            },
+            transaction,
+          );
+          const mealInTransaction = await mealRepository.findById(
+            insertedMeal.id,
+            transaction,
+          );
+          const mealOutsideTransaction = await mealRepository.findById(insertedMeal.id);
+
+          expect(mealInTransaction).toEqual(insertedMeal);
+          expect(mealOutsideTransaction).toBeNull();
+          return insertedMeal;
+        });
+
+      const mealAfterCommit = await mealRepository.findById(createdMeal.id);
+      expect(mealAfterCommit).toEqual(createdMeal);
+    });
   });
 
   describe("findByIds", () => {
