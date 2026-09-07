@@ -428,6 +428,46 @@ describe("mealService", () => {
       });
     });
 
+    it("should replace foods and update the name on the same transaction", async () => {
+      const MEAL_ID = "meal-update-tx";
+      const existingRow: MealRow = {
+        id: MEAL_ID,
+        name: "Original Name",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 0,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const mockTransaction = {};
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
+      mockedMealRepo.findById.mockResolvedValue(existingRow);
+      mockedMealRepo.replaceFoods.mockResolvedValue([]);
+      mockedMealRepo.update.mockResolvedValue(existingRow);
+      mockedIngredientRepo.findByIds.mockResolvedValue([]);
+      mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
+
+      await mealService.update(MEAL_ID, {
+        name: "Renamed Meal",
+        foods: [],
+      });
+
+      expect(mockedMealRepo.replaceFoods).toHaveBeenCalledWith(
+        MEAL_ID,
+        [],
+        mockTransaction,
+      );
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        MEAL_ID,
+        { name: "Renamed Meal" },
+        mockTransaction,
+      );
+    });
+
     // Only checks that replaceFoods is called and the response is correct.
     // Old foods being deleted is verified in integration/repo tests.
     it("should replace the meal's foods and name", async () => {
@@ -449,6 +489,13 @@ describe("mealService", () => {
         updated_at: new Date("2026-06-02T12:00:00.000Z"),
       };
 
+      const mockTransaction = {};
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
       mockedMealRepo.findById.mockResolvedValue(existingRow);
       mockedMealRepo.update.mockResolvedValue(updatedMealRow);
       mockedMealRepo.replaceFoods.mockResolvedValue([]);
@@ -465,10 +512,14 @@ describe("mealService", () => {
         ],
       });
 
-      expect(mockedMealRepo.replaceFoods).toHaveBeenCalledWith(MEAL_ID, [
-        { ingredientId: MOCK_INGREDIENT_ID_2, amount: 250 },
-        { compositeFoodId: MOCK_COMPOSITE_FOOD_ID_2, amount: 75 },
-      ]);
+      expect(mockedMealRepo.replaceFoods).toHaveBeenCalledWith(
+        MEAL_ID,
+        [
+          { ingredientId: MOCK_INGREDIENT_ID_2, amount: 250 },
+          { compositeFoodId: MOCK_COMPOSITE_FOOD_ID_2, amount: 75 },
+        ],
+        mockTransaction,
+      );
 
       expect(updatedMeal).toEqual({
         id: MEAL_ID,

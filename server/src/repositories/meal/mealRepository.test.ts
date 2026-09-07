@@ -7,7 +7,6 @@ import { createTestCompositeFood } from "../compositeFood/compositeFoodRepositor
 import { createTestMeal } from "./mealRepository.fixtures.js";
 import { createTestMealGroup } from "../mealGroup/mealGroupRepository.fixtures.js";
 import { getDb } from "../../db/database.js";
-import type { MealFoodRef } from "./mealRepository.js";
 
 async function createIngredientRow(displayName: string) {
   const ingredient = await ingredientRepository.create(
@@ -23,12 +22,6 @@ describe("mealRepository", () => {
     const mealGroup = await createTestMealGroup("meal-repo-shared-group");
     sharedMealGroupId = mealGroup.id;
   });
-
-  async function createMealWithFoods(mealName: string, foods: MealFoodRef[]) {
-    const meal = await createTestMeal(sharedMealGroupId, mealName);
-    await mealRepository.replaceFoods(meal.id, foods);
-    return meal;
-  }
 
   describe("create", () => {
     it("should create an empty meal belonging to a group and return the persisted shape", async () => {
@@ -337,13 +330,17 @@ describe("mealRepository", () => {
     it("should return only foods for the given meal", async () => {
       const sharedIngredient = await createIngredientRow("ingredient-shared");
 
-      const mealWithOneFood = await createMealWithFoods("meal-one-food", [
+      const mealWithOneFood = await createTestMeal(sharedMealGroupId, "meal-one-food", [
         { ingredientId: sharedIngredient.id, amount: 100 },
       ]);
-      const mealWithTwoFoods = await createMealWithFoods("meal-two-foods", [
-        { ingredientId: sharedIngredient.id, amount: 100 },
-        { ingredientId: sharedIngredient.id, amount: 150 },
-      ]);
+      const mealWithTwoFoods = await createTestMeal(
+        sharedMealGroupId,
+        "meal-two-foods",
+        [
+          { ingredientId: sharedIngredient.id, amount: 100 },
+          { ingredientId: sharedIngredient.id, amount: 150 },
+        ],
+      );
 
       const foodsForMealOne = await mealRepository.findFoodsByMealId(
         mealWithOneFood.id,
@@ -431,6 +428,30 @@ describe("mealRepository", () => {
   });
 
   describe("replaceFoods", () => {
+    // We need this test because replaceFoods can join an outer transaction.
+    // If it still opened and committed its own transaction, aborting the outer
+    // one would leave the new foods saved anyway.
+    it("should roll back food writes when the provided transaction is aborted", async () => {
+      const ingredient = await createIngredientRow("ingredient-tx-rollback");
+      const meal = await createTestMeal(sharedMealGroupId, "meal-replace-tx");
+
+      await expect(
+        getDb()
+          .transaction()
+          .execute(async (transaction) => {
+            await mealRepository.replaceFoods(
+              meal.id,
+              [{ ingredientId: ingredient.id, amount: 100 }],
+              transaction,
+            );
+            throw new Error("forced rollback");
+          }),
+      ).rejects.toThrow("forced rollback");
+
+      const mealFoodRows = await mealRepository.findFoodsByMealId(meal.id);
+      expect(mealFoodRows).toEqual([]);
+    });
+
     it("should replace ingredient and composite foods on a meal", async () => {
       const originalIngredient = await createIngredientRow("ingredient-original");
       const replacementIngredient = await createIngredientRow("ingredient-replacement");
@@ -441,15 +462,24 @@ describe("mealRepository", () => {
         "composite-food-replacement",
       );
 
-      const meal = await createMealWithFoods("meal-replace-foods", [
+      const meal = await createTestMeal(sharedMealGroupId, "meal-replace-foods", [
         { ingredientId: originalIngredient.id, amount: 100 },
         { compositeFoodId: originalCompositeFood.id, amount: 300 },
       ]);
 
-      const replacedMealFoodRows = await mealRepository.replaceFoods(meal.id, [
-        { ingredientId: replacementIngredient.id, amount: 250 },
-        { compositeFoodId: replacementCompositeFood.id, amount: 75 },
-      ]);
+      const replacedMealFoodRows = await getDb()
+        .transaction()
+        .execute(async (transaction) => {
+          const mealFoodRows = await mealRepository.replaceFoods(
+            meal.id,
+            [
+              { ingredientId: replacementIngredient.id, amount: 250 },
+              { compositeFoodId: replacementCompositeFood.id, amount: 75 },
+            ],
+            transaction,
+          );
+          return mealFoodRows;
+        });
 
       expect(replacedMealFoodRows).toHaveLength(2);
       expect(replacedMealFoodRows).toEqual(
@@ -486,7 +516,7 @@ describe("mealRepository", () => {
       const ingredient = await createIngredientRow("ingredient-delete");
       const compositeFood = await createTestCompositeFood("composite-food-delete");
 
-      const meal = await createMealWithFoods("meal-delete-foods", [
+      const meal = await createTestMeal(sharedMealGroupId, "meal-delete-foods", [
         { ingredientId: ingredient.id, amount: 100 },
         { compositeFoodId: compositeFood.id, amount: 300 },
       ]);

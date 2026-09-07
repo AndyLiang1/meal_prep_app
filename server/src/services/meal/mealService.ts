@@ -305,12 +305,23 @@ export const mealService = {
     if (!existingMeal) return null;
 
     if (input.foods !== undefined) {
-      const mealFoodRows = refsToMealFoodRows(input.foods);
+      const mealFoodRefs = input.foods;
+      const mealFoodRows = refsToMealFoodRows(mealFoodRefs);
       const foodCatalog = await fetchFoodCatalog(mealFoodRows);
-      assertMealFoodRefsExist(input.foods, foodCatalog);
-      await mealRepository.replaceFoods(id, input.foods);
+      assertMealFoodRefsExist(mealFoodRefs, foodCatalog);
 
-      const updatedMealRecord = await mealRepository.update(id, { name: input.name });
+      const updatedMealRecord = await getDb()
+        .transaction()
+        .execute(async (transaction) => {
+          await mealRepository.replaceFoods(id, mealFoodRefs, transaction);
+          const updatedRecord = await mealRepository.update(
+            id,
+            { name: input.name },
+            transaction,
+          );
+          return updatedRecord;
+        });
+
       if (!updatedMealRecord) return null;
 
       const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);

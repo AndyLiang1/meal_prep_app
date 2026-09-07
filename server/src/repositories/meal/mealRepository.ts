@@ -157,34 +157,27 @@ export const mealRepository = {
   async replaceFoods(
     mealId: string,
     mealFoodRefs: MealFoodRef[],
+    transaction: DatabaseTransaction,
   ): Promise<MealFoodRow[]> {
-    const replacedMealFoodRows = await getDb()
-      .transaction()
-      .execute(async (transaction) => {
-        await transaction
-          .deleteFrom("meal_food")
-          .where("meal_id", "=", mealId)
-          .execute();
+    await transaction.deleteFrom("meal_food").where("meal_id", "=", mealId).execute();
 
-        if (mealFoodRefs.length === 0) {
-          return [];
-        }
+    if (mealFoodRefs.length === 0) {
+      return [];
+    }
 
-        const insertedMealFoodRows = await transaction
-          .insertInto("meal_food")
-          .values(
-            mealFoodRefs.map((mealFoodRef) => ({
-              meal_id: mealId,
-              ingredient_id: mealFoodRef.ingredientId ?? null,
-              composite_food_id: mealFoodRef.compositeFoodId ?? null,
-              amount: mealFoodRef.amount,
-            })),
-          )
-          .returningAll()
-          .execute();
-        return insertedMealFoodRows;
-      });
-    return replacedMealFoodRows;
+    const insertedMealFoodRows = await transaction
+      .insertInto("meal_food")
+      .values(
+        mealFoodRefs.map((mealFoodRef) => ({
+          meal_id: mealId,
+          ingredient_id: mealFoodRef.ingredientId ?? null,
+          composite_food_id: mealFoodRef.compositeFoodId ?? null,
+          amount: mealFoodRef.amount,
+        })),
+      )
+      .returningAll()
+      .execute();
+    return insertedMealFoodRows;
   },
 
   async delete(mealId: string, transaction: DatabaseTransaction): Promise<boolean> {
