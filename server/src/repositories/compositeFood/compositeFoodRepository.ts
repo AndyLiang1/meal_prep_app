@@ -185,22 +185,27 @@ export const compositeFoodRepository = {
     const updatedCompositeFood = await getDb()
       .transaction()
       .execute(async (transaction) => {
-        const compositeFoodUpdate: Record<string, unknown> = {
+        const compositeFoodSetValues: {
+          updated_at: Date;
+          name?: string;
+          serving_size?: number;
+          unit?: TIngredientUnit;
+        } = {
           updated_at: new Date(),
         };
         if (updateCompositeFoodInput.name !== undefined) {
-          compositeFoodUpdate.name = updateCompositeFoodInput.name;
+          compositeFoodSetValues.name = updateCompositeFoodInput.name;
         }
         if (updateCompositeFoodInput.servingSize !== undefined) {
-          compositeFoodUpdate.serving_size = updateCompositeFoodInput.servingSize;
+          compositeFoodSetValues.serving_size = updateCompositeFoodInput.servingSize;
         }
         if (updateCompositeFoodInput.unit !== undefined) {
-          compositeFoodUpdate.unit = updateCompositeFoodInput.unit;
+          compositeFoodSetValues.unit = updateCompositeFoodInput.unit;
         }
 
         const updatedCompositeFoodRow = await transaction
           .updateTable("composite_food")
-          .set(compositeFoodUpdate)
+          .set(compositeFoodSetValues)
           .where("id", "=", id)
           .returningAll()
           .executeTakeFirst();
