@@ -510,6 +510,44 @@ describe("mealService", () => {
   });
 
   describe("reorder", () => {
+    const mockTransaction = {};
+
+    beforeEach(() => {
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
+    });
+
+    it("should lock the meal group and read meals on the same transaction", async () => {
+      const existingMeals: MealRow[] = [
+        {
+          id: "meal-a",
+          name: "Meal A",
+          meal_group_id: MOCK_MEAL_GROUP_ID,
+          sort_order: 0,
+          created_at: new Date("2026-06-01T12:00:00.000Z"),
+          updated_at: new Date("2026-06-01T12:00:00.000Z"),
+        },
+      ];
+
+      mockedMealRepo.findByMealGroupId.mockResolvedValue(existingMeals);
+      mockedMealRepo.update.mockResolvedValue(null);
+
+      await mealService.reorder(MOCK_MEAL_GROUP_ID, ["meal-a"]);
+
+      expect(mockedMealGroupRepo.findAndLockById).toHaveBeenCalledWith(
+        MOCK_MEAL_GROUP_ID,
+        mockTransaction,
+      );
+      expect(mockedMealRepo.findByMealGroupId).toHaveBeenCalledWith(
+        MOCK_MEAL_GROUP_ID,
+        mockTransaction,
+      );
+    });
+
     it("should set sort orders to match the array positions", async () => {
       const existingMeals: MealRow[] = [
         {
@@ -540,13 +578,6 @@ describe("mealService", () => {
 
       mockedMealRepo.findByMealGroupId.mockResolvedValue(existingMeals);
       mockedMealRepo.update.mockResolvedValue(null);
-      const mockTransaction = {};
-      mockedGetDb.mockReturnValue({
-        transaction: () => ({
-          execute: (callback: (transaction: unknown) => unknown) =>
-            callback(mockTransaction),
-        }),
-      } as ReturnType<typeof getDb>);
 
       await mealService.reorder(MOCK_MEAL_GROUP_ID, ["meal-c", "meal-a", "meal-b"]);
 

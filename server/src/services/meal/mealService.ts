@@ -243,8 +243,8 @@ export const mealService = {
     const createdMeal = await getDb()
       .transaction()
       .execute(async (transaction) => {
-        // Deleting or creating meals depends on the current state of the sort orders in the meal group.
-        // So lock the meal group
+        // We depend on the current state of the sort orders in the meal group.
+        // So lock the meal group so other requests cannot change the sort orders while we are deleting.
         const mealGroup = await mealGroupRepository.findAndLockById(
           input.mealGroupId,
           transaction,
@@ -329,23 +329,30 @@ export const mealService = {
   },
 
   async reorder(mealGroupId: string, mealIds: string[]): Promise<void> {
-    const existingMeals = await mealRepository.findByMealGroupId(mealGroupId);
-    const existingMealIds = new Set(existingMeals.map((mealRow) => mealRow.id));
-
-    const uniqueRequestedMealIds = new Set(mealIds);
-    const allIdsExist = mealIds.every((mealId) => existingMealIds.has(mealId));
-    const hasDuplicateMealIds = uniqueRequestedMealIds.size !== mealIds.length;
-    if (
-      !allIdsExist ||
-      hasDuplicateMealIds ||
-      mealIds.length !== existingMeals.length
-    ) {
-      throw new Error("Meal IDs do not match the meals in this group");
-    }
-
     await getDb()
       .transaction()
       .execute(async (transaction) => {
+        // Reorder, create, and delete all depend on the current sort orders in
+        // the meal group. Lock the group so those requests cannot interleave.
+        await mealGroupRepository.findAndLockById(mealGroupId, transaction);
+
+        const existingMeals = await mealRepository.findByMealGroupId(
+          mealGroupId,
+          transaction,
+        );
+        const existingMealIds = new Set(existingMeals.map((mealRow) => mealRow.id));
+
+        const uniqueRequestedMealIds = new Set(mealIds);
+        const allIdsExist = mealIds.every((mealId) => existingMealIds.has(mealId));
+        const hasDuplicateMealIds = uniqueRequestedMealIds.size !== mealIds.length;
+        if (
+          !allIdsExist ||
+          hasDuplicateMealIds ||
+          mealIds.length !== existingMeals.length
+        ) {
+          throw new Error("Meal IDs do not match the meals in this group");
+        }
+
         await Promise.all(
           mealIds.map((mealId, sortOrder) =>
             mealRepository.update(mealId, { sortOrder }, transaction),
@@ -363,8 +370,8 @@ export const mealService = {
           return false;
         }
 
-        // Deleting or creating meals depends on the current state of the sort orders in the meal group.
-        // So lock the meal group
+        // We depend on the current state of the sort orders in the meal group.
+        // So lock the meal group so other requests cannot change the sort orders while we are deleting.
         await mealGroupRepository.findAndLockById(
           mealToDelete.meal_group_id,
           transaction,
