@@ -81,7 +81,7 @@ const mockedMealGroupRepo = vi.mocked(mealGroupRepository, true);
 const mockedIngredientRepo = vi.mocked(ingredientRepository, true);
 const mockedCompositeFoodRepo = vi.mocked(compositeFoodRepository, true);
 
-const MOCK_MEAL_GROUP_ID = "meal-group-1-id";
+const MOCK_MEAL_GROUP_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("mealService", () => {
   beforeEach(() => {
@@ -106,6 +106,18 @@ describe("mealService", () => {
             callback(mockTransaction),
         }),
       } as ReturnType<typeof getDb>);
+    });
+
+    it("should reject when the create payload fails schema validation", async () => {
+      await expect(
+        mealService.create({
+          name: "",
+          mealGroupId: MOCK_MEAL_GROUP_ID,
+        }),
+      ).rejects.toThrow("Invalid meal data");
+
+      expect(mockedMealGroupRepo.findAndLockById).not.toHaveBeenCalled();
+      expect(mockedMealRepo.create).not.toHaveBeenCalled();
     });
 
     it("should create an empty meal belonging to a meal group", async () => {
@@ -380,6 +392,13 @@ describe("mealService", () => {
   });
 
   describe("update", () => {
+    it("should reject when the update payload fails schema validation", async () => {
+      await expect(mealService.update("meal-update-invalid", {})).rejects.toThrow(
+        "Invalid meal data",
+      );
+      expect(mockedMealRepo.findById).not.toHaveBeenCalled();
+    });
+
     it("should return null when the meal does not exist", async () => {
       mockedMealRepo.findById.mockResolvedValue(null);
 
@@ -448,17 +467,18 @@ describe("mealService", () => {
       mockedMealRepo.findById.mockResolvedValue(existingRow);
       mockedMealRepo.replaceFoods.mockResolvedValue([]);
       mockedMealRepo.update.mockResolvedValue(existingRow);
-      mockedIngredientRepo.findByIds.mockResolvedValue([]);
+      mockedIngredientRepo.findByIds.mockResolvedValue([mockIngredientRow1]);
       mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
 
+      const mealFoodRefs = [{ ingredientId: MOCK_INGREDIENT_ID_1, amount: 100 }];
       await mealService.update(MEAL_ID, {
         name: "Renamed Meal",
-        foods: [],
+        foods: mealFoodRefs,
       });
 
       expect(mockedMealRepo.replaceFoods).toHaveBeenCalledWith(
         MEAL_ID,
-        [],
+        mealFoodRefs,
         mockTransaction,
       );
       expect(mockedMealRepo.update).toHaveBeenCalledWith(

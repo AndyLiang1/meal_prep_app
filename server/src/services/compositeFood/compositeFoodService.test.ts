@@ -67,6 +67,18 @@ describe("compositeFoodService", () => {
   });
 
   describe("create", () => {
+    it("should reject when the create payload fails schema validation", async () => {
+      await expect(
+        compositeFoodService.create({
+          name: "",
+          servingSize: 100,
+          unit: "GRAM",
+          ingredients: [{ ingredientId: MOCK_INGREDIENT_ID_1, amount: 100 }],
+        }),
+      ).rejects.toThrow("Invalid composite food data");
+      expect(mockedCompositeFoodRepo.createWithIngredients).not.toHaveBeenCalled();
+    });
+
     it("should not create a composite food when one or more ingredients are not found", async () => {
       mockedIngredientRepo.findExistingIds.mockResolvedValue([]);
 
@@ -175,6 +187,13 @@ describe("compositeFoodService", () => {
   });
 
   describe("update", () => {
+    it("should reject when the update payload fails schema validation", async () => {
+      await expect(compositeFoodService.update(MISSING_ID, {})).rejects.toThrow(
+        "Invalid composite food data",
+      );
+      expect(mockedCompositeFoodRepo.update).not.toHaveBeenCalled();
+    });
+
     it("should return null when the composite food does not exist", async () => {
       mockedCompositeFoodRepo.update.mockResolvedValue(null);
 

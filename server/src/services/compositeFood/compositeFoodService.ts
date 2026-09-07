@@ -6,9 +6,11 @@ import {
 import { ingredientRepository } from "../../repositories/ingredient/ingredientRepository.js";
 import type { TCompositeFood } from "../../types.js";
 import type { TIngredientUnit } from "../../schemas/ingredient.js";
-import type {
-  CreateCompositeFoodInput,
-  UpdateCompositeFoodInput,
+import {
+  createCompositeFoodSchema,
+  updateCompositeFoodSchema,
+  type CreateCompositeFoodInput,
+  type UpdateCompositeFoodInput,
 } from "../../schemas/compositeFood.js";
 
 function round2(value: number): number {
@@ -116,8 +118,16 @@ function buildCompositeFoods(
 
 export const compositeFoodService = {
   async create(input: CreateCompositeFoodInput): Promise<TCompositeFood> {
+    const validatedCompositeFood = createCompositeFoodSchema.safeParse(input);
+    if (!validatedCompositeFood.success) {
+      throw new Error("Invalid composite food data");
+    }
+    const validatedInput = validatedCompositeFood.data;
+
     const uniqueIds = [
-      ...new Set(input.ingredients.map((ingredientRef) => ingredientRef.ingredientId)),
+      ...new Set(
+        validatedInput.ingredients.map((ingredientRef) => ingredientRef.ingredientId),
+      ),
     ];
     const existingIds = await ingredientRepository.findExistingIds(uniqueIds);
     if (existingIds.length !== uniqueIds.length) {
@@ -125,7 +135,7 @@ export const compositeFoodService = {
     }
 
     const { created_at, updated_at, ...compositeFood } =
-      await compositeFoodRepository.createWithIngredients(input);
+      await compositeFoodRepository.createWithIngredients(validatedInput);
     const rows = await compositeFoodRepository.findIngredientRows(compositeFood.id);
     const ingredients = formatIngredients(rows);
     const macros = computeMacros(rows);
@@ -160,9 +170,17 @@ export const compositeFoodService = {
     id: string,
     input: UpdateCompositeFoodInput,
   ): Promise<TCompositeFood | null> {
-    if (input.ingredients) {
+    const validatedCompositeFood = updateCompositeFoodSchema.safeParse(input);
+    if (!validatedCompositeFood.success) {
+      throw new Error("Invalid composite food data");
+    }
+    const validatedInput = validatedCompositeFood.data;
+
+    if (validatedInput.ingredients) {
       const uniqueIngredientIds = [
-        ...new Set(input.ingredients.map((ingredient) => ingredient.ingredientId)),
+        ...new Set(
+          validatedInput.ingredients.map((ingredient) => ingredient.ingredientId),
+        ),
       ];
       const existingIngredientIds =
         await ingredientRepository.findExistingIds(uniqueIngredientIds);
@@ -171,7 +189,10 @@ export const compositeFoodService = {
       }
     }
 
-    const updatedCompositeFoodRow = await compositeFoodRepository.update(id, input);
+    const updatedCompositeFoodRow = await compositeFoodRepository.update(
+      id,
+      validatedInput,
+    );
     if (!updatedCompositeFoodRow) return null;
 
     const updatedCompositeFoodJoinRows =

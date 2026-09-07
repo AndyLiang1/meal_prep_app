@@ -7,12 +7,12 @@ import type {
 import type { CreateCompositeFoodInput } from "../../schemas/compositeFood.js";
 import { mockCreateIngredientData } from "../../repositories/ingredient/ingredientRepository.fixtures.js";
 
-export const MOCK_COMPOSITE_FOOD_ID_1 = "composite-food-1-id";
-export const MOCK_COMPOSITE_FOOD_ID_2 = "composite-food-2-id";
+export const MOCK_COMPOSITE_FOOD_ID_1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+export const MOCK_COMPOSITE_FOOD_ID_2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-export const MOCK_INGREDIENT_ID_1 = "ingredient-1-id";
-export const MOCK_INGREDIENT_ID_2 = "ingredient-2-id";
-export const MOCK_INGREDIENT_ID_3 = "ingredient-3-id";
+export const MOCK_INGREDIENT_ID_1 = "11111111-1111-4111-8111-111111111111";
+export const MOCK_INGREDIENT_ID_2 = "22222222-2222-4222-8222-222222222222";
+export const MOCK_INGREDIENT_ID_3 = "33333333-3333-4333-8333-333333333333";
 
 // --- Repo-layer rows (what the mocked repositories return) ---
 

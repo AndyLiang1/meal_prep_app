@@ -3,8 +3,8 @@ import { mockCreateIngredientData } from "../../repositories/ingredient/ingredie
 import type { IngredientRow } from "../../repositories/ingredient/ingredientRepository.js";
 import { ingredientRowToTIngredient } from "./ingredientRowToTIngredient.js";
 
-export const MOCK_INGREDIENT_ID_1 = "ingredient-1-id";
-export const MOCK_INGREDIENT_ID_2 = "ingredient-2-id";
+export const MOCK_INGREDIENT_ID_1 = "11111111-1111-4111-8111-111111111111";
+export const MOCK_INGREDIENT_ID_2 = "22222222-2222-4222-8222-222222222222";
 
 // --- Mock database rows ---
 

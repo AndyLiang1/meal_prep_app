@@ -14,7 +14,11 @@ import {
   type CompositeFoodWithIngredientsJoinRow,
 } from "../../repositories/compositeFood/compositeFoodRepository.js";
 import { getDb } from "../../db/database.js";
-import type { CreateMealData } from "../../schemas/meal.js";
+import {
+  createMealSchema,
+  updateMealSchema,
+  type CreateMealData,
+} from "../../schemas/meal.js";
 import type {
   TIngredient,
   TCompositeFood,
@@ -240,13 +244,19 @@ export function toMeal(mealRow: MealRow, foods: TMealFood[] = []): TMeal {
 
 export const mealService = {
   async create(input: CreateMealData): Promise<TMeal> {
+    const validatedMeal = createMealSchema.safeParse(input);
+    if (!validatedMeal.success) {
+      throw new Error("Invalid meal data");
+    }
+    const validatedInput = validatedMeal.data;
+
     const createdMeal = await getDb()
       .transaction()
       .execute(async (transaction) => {
         // We depend on the current state of the sort orders in the meal group.
         // So lock the meal group so other requests cannot change the sort orders while we are deleting.
         const mealGroup = await mealGroupRepository.findAndLockById(
-          input.mealGroupId,
+          validatedInput.mealGroupId,
           transaction,
         );
         if (!mealGroup) {
@@ -254,7 +264,7 @@ export const mealService = {
         }
 
         const existingMeals = await mealRepository.findByMealGroupId(
-          input.mealGroupId,
+          validatedInput.mealGroupId,
           transaction,
         );
         const existingSortOrders = new Set(
@@ -264,8 +274,8 @@ export const mealService = {
 
         const mealRecord = await mealRepository.create(
           {
-            name: input.name,
-            mealGroupId: input.mealGroupId,
+            name: validatedInput.name,
+            mealGroupId: validatedInput.mealGroupId,
             sortOrder: resolvedSortOrder,
           },
           transaction,
@@ -301,11 +311,17 @@ export const mealService = {
   },
 
   async update(id: string, input: UpdateMealInput): Promise<TMeal | null> {
+    const validatedMeal = updateMealSchema.safeParse(input);
+    if (!validatedMeal.success) {
+      throw new Error("Invalid meal data");
+    }
+    const validatedInput = validatedMeal.data;
+
     const existingMeal = await mealRepository.findById(id);
     if (!existingMeal) return null;
 
-    if (input.foods !== undefined) {
-      const mealFoodRefs = input.foods;
+    if (validatedInput.foods !== undefined) {
+      const mealFoodRefs = validatedInput.foods;
       const mealFoodRows = refsToMealFoodRows(mealFoodRefs);
       const foodCatalog = await fetchFoodCatalog(mealFoodRows);
       assertMealFoodRefsExist(mealFoodRefs, foodCatalog);
@@ -316,7 +332,7 @@ export const mealService = {
           await mealRepository.replaceFoods(id, mealFoodRefs, transaction);
           const updatedRecord = await mealRepository.update(
             id,
-            { name: input.name },
+            { name: validatedInput.name },
             transaction,
           );
           return updatedRecord;
@@ -329,7 +345,9 @@ export const mealService = {
       return updatedMeal;
     }
 
-    const updatedMealRecord = await mealRepository.update(id, { name: input.name });
+    const updatedMealRecord = await mealRepository.update(id, {
+      name: validatedInput.name,
+    });
     if (!updatedMealRecord) return null;
 
     const mealFoodRows = await mealRepository.findFoodsByMealId(updatedMealRecord.id);
