@@ -168,9 +168,7 @@ function assembleMealFoodsFromCatalog(
       if (!ingredientRow) continue;
       const mealFood = toMealFoodFromIngredient(ingredientRow, mealFoodRow.amount);
       foods.push(mealFood);
-    }
-
-    if (mealFoodRow.composite_food_id) {
+    } else if (mealFoodRow.composite_food_id) {
       const joinRows = catalog.compositeFoodMap.get(mealFoodRow.composite_food_id);
       if (!joinRows || joinRows.length === 0) continue;
       const mealFood = toMealFoodFromCompositeFood(
