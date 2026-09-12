@@ -324,13 +324,18 @@ export const mealService = {
       const foodCatalog = await fetchFoodCatalog(mealFoodRows);
       assertMealFoodRefsExist(mealFoodRefs, foodCatalog);
 
+      const mealUpdateInput: { name?: string } = {};
+      if (validatedInput.name !== undefined) {
+        mealUpdateInput.name = validatedInput.name;
+      }
+
       const updatedMealRecord = await getDb()
         .transaction()
         .execute(async (transaction) => {
           await mealRepository.replaceFoods(id, mealFoodRefs, transaction);
           const updatedRecord = await mealRepository.update(
             id,
-            { name: validatedInput.name },
+            mealUpdateInput,
             transaction,
           );
           return updatedRecord;
