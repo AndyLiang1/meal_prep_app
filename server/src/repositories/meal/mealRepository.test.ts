@@ -381,6 +381,59 @@ describe("mealRepository", () => {
     });
   });
 
+  describe("findFoodsByMealIds", () => {
+    it("should return an empty array for empty input", async () => {
+      const mealFoodRows = await mealRepository.findFoodsByMealIds([]);
+      expect(mealFoodRows).toEqual([]);
+    });
+
+    it("should return foods for the given meal ids and ignore unknown ids", async () => {
+      const sharedIngredient = await createIngredientRow("ingredient-batch");
+
+      const mealWithOneFood = await createTestMeal(
+        sharedMealGroupId,
+        "meal-batch-one",
+        [{ ingredientId: sharedIngredient.id, amount: 100 }],
+      );
+      const mealWithTwoFoods = await createTestMeal(
+        sharedMealGroupId,
+        "meal-batch-two",
+        [
+          { ingredientId: sharedIngredient.id, amount: 100 },
+          { ingredientId: sharedIngredient.id, amount: 150 },
+        ],
+      );
+      const mealWithNoFoods = await createTestMeal(
+        sharedMealGroupId,
+        "meal-batch-empty",
+      );
+
+      const mealFoodRows = await mealRepository.findFoodsByMealIds([
+        mealWithOneFood.id,
+        mealWithTwoFoods.id,
+        mealWithNoFoods.id,
+        MISSING_ID,
+      ]);
+
+      expect(mealFoodRows).toHaveLength(3);
+      expect(
+        mealFoodRows.filter(
+          (mealFoodRow) => mealFoodRow.meal_id === mealWithOneFood.id,
+        ),
+      ).toHaveLength(1);
+      expect(
+        mealFoodRows.filter(
+          (mealFoodRow) => mealFoodRow.meal_id === mealWithTwoFoods.id,
+        ),
+      ).toHaveLength(2);
+      expect(
+        mealFoodRows.every((mealFoodRow) =>
+          [mealWithOneFood.id, mealWithTwoFoods.id].includes(mealFoodRow.meal_id),
+        ),
+      ).toBe(true);
+    });
+  });
+
   describe("update", () => {
     it("should return the full row with updated metadata and a bumped updated_at", async () => {
       const beforeUpdate = await createTestMeal(sharedMealGroupId, "meal-old-name");
