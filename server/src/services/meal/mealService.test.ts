@@ -861,5 +861,101 @@ describe("mealService", () => {
         expect.anything(),
       );
     });
+
+    it("should delete the last meal without shifting sort orders", async () => {
+      const firstMeal: MealRow = {
+        id: "meal-first",
+        name: "First Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 0,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const middleMeal: MealRow = {
+        id: "meal-middle",
+        name: "Middle Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 1,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const lastMeal: MealRow = {
+        id: "meal-last",
+        name: "Last Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 2,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+
+      mockedMealRepo.findById.mockResolvedValue(lastMeal);
+      mockedMealRepo.findByMealGroupId.mockResolvedValue([
+        firstMeal,
+        middleMeal,
+        lastMeal,
+      ]);
+      mockedMealRepo.delete.mockResolvedValue(true);
+
+      const deleted = await mealService.delete("meal-last");
+
+      expect(deleted).toBe(true);
+      expect(mockedMealRepo.delete).toHaveBeenCalledWith("meal-last", mockTransaction);
+      expect(mockedMealRepo.update).not.toHaveBeenCalled();
+    });
+
+    it("should delete the first meal and shift remaining sort orders down", async () => {
+      const firstMeal: MealRow = {
+        id: "meal-first",
+        name: "First Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 0,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const middleMeal: MealRow = {
+        id: "meal-middle",
+        name: "Middle Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 1,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const lastMeal: MealRow = {
+        id: "meal-last",
+        name: "Last Meal",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 2,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+
+      mockedMealRepo.findById.mockResolvedValue(firstMeal);
+      mockedMealRepo.findByMealGroupId.mockResolvedValue([
+        firstMeal,
+        middleMeal,
+        lastMeal,
+      ]);
+      mockedMealRepo.delete.mockResolvedValue(true);
+      mockedMealRepo.update.mockResolvedValue(null);
+
+      const deleted = await mealService.delete("meal-first");
+
+      expect(deleted).toBe(true);
+      expect(mockedMealRepo.delete).toHaveBeenCalledWith("meal-first", mockTransaction);
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-middle",
+        { sortOrder: 0 },
+        mockTransaction,
+      );
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-last",
+        { sortOrder: 1 },
+        mockTransaction,
+      );
+      expect(mockedMealRepo.update).not.toHaveBeenCalledWith(
+        "meal-first",
+        expect.anything(),
+      );
+    });
   });
 });
