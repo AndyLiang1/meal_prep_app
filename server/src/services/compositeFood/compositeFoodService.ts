@@ -21,22 +21,23 @@ function round2(value: number): number {
 // Ingredient macros are stored relative to `serving_size` in the ingredient's
 // `unit`; composite entries supply an `amount` in that same unit, so we scale
 // by `amount / serving_size`.
-function scaleFor(row: CompositeIngredientJoinRow): number {
-  const scale = row.amount / row.serving_size;
+function scaleFor(compositeIngredientJoinRow: CompositeIngredientJoinRow): number {
+  const scale =
+    compositeIngredientJoinRow.amount / compositeIngredientJoinRow.serving_size;
   return scale;
 }
 
-function computeMacros(rows: CompositeIngredientJoinRow[]) {
+function computeMacros(compositeIngredientJoinRows: CompositeIngredientJoinRow[]) {
   let calories = 0;
   let protein = 0;
   let carbs = 0;
   let fats = 0;
-  for (const r of rows) {
-    const scale = scaleFor(r);
-    calories += r.calories * scale;
-    protein += r.protein * scale;
-    carbs += r.carbs * scale;
-    fats += r.fats * scale;
+  for (const compositeIngredientJoinRow of compositeIngredientJoinRows) {
+    const scale = scaleFor(compositeIngredientJoinRow);
+    calories += compositeIngredientJoinRow.calories * scale;
+    protein += compositeIngredientJoinRow.protein * scale;
+    carbs += compositeIngredientJoinRow.carbs * scale;
+    fats += compositeIngredientJoinRow.fats * scale;
   }
   return {
     calories: round2(calories),
