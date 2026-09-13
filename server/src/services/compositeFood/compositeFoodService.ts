@@ -47,22 +47,24 @@ function computeMacros(compositeIngredientJoinRows: CompositeIngredientJoinRow[]
   };
 }
 
-function formatIngredients(rows: CompositeIngredientJoinRow[]) {
-  const formatted = rows.map((row) => {
-    const detail = {
-      ingredientId: row.ingredient_id,
-      name: row.name,
-      amount: row.amount,
-      unit: row.unit,
-      servingSize: row.serving_size,
-      calories: row.calories,
-      protein: row.protein,
-      carbs: row.carbs,
-      fats: row.fats,
-    };
-    return detail;
-  });
-  return formatted;
+function formatIngredients(compositeIngredientJoinRows: CompositeIngredientJoinRow[]) {
+  const formattedIngredients = compositeIngredientJoinRows.map(
+    (compositeIngredientJoinRow) => {
+      const formattedIngredient = {
+        ingredientId: compositeIngredientJoinRow.ingredient_id,
+        name: compositeIngredientJoinRow.name,
+        amount: compositeIngredientJoinRow.amount,
+        unit: compositeIngredientJoinRow.unit,
+        servingSize: compositeIngredientJoinRow.serving_size,
+        calories: compositeIngredientJoinRow.calories,
+        protein: compositeIngredientJoinRow.protein,
+        carbs: compositeIngredientJoinRow.carbs,
+        fats: compositeIngredientJoinRow.fats,
+      };
+      return formattedIngredient;
+    },
+  );
+  return formattedIngredients;
 }
 
 interface CompositeFoodAccumulator {
