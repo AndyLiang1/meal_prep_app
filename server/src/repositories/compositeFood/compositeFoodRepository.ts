@@ -51,7 +51,7 @@ export const compositeFoodRepository = {
     const compositeFood = await getDb()
       .transaction()
       .execute(async (transaction) => {
-        const cf = await transaction
+        const insertedCompositeFoodRow = await transaction
           .insertInto("composite_food")
           .values({
             name: createCompositeFoodInput.name,
@@ -65,34 +65,34 @@ export const compositeFoodRepository = {
           .insertInto("composite_food_ingredient")
           .values(
             createCompositeFoodInput.ingredients.map((ingredientRef) => ({
-              composite_food_id: cf.id,
+              composite_food_id: insertedCompositeFoodRow.id,
               ingredient_id: ingredientRef.ingredientId,
               amount: ingredientRef.amount,
             })),
           )
           .execute();
 
-        return cf;
+        return insertedCompositeFoodRow;
       });
     return compositeFood;
   },
 
   async findAll(): Promise<CompositeFoodRow[]> {
-    const rows = await getDb()
+    const compositeFoodRows = await getDb()
       .selectFrom("composite_food")
       .selectAll()
       .orderBy("created_at", "asc")
       .execute();
-    return rows;
+    return compositeFoodRows;
   },
 
   async findById(id: string): Promise<CompositeFoodRow | null> {
-    const row = await getDb()
+    const compositeFoodRow = await getDb()
       .selectFrom("composite_food")
       .selectAll()
       .where("id", "=", id)
       .executeTakeFirst();
-    return row ?? null;
+    return compositeFoodRow ?? null;
   },
 
   async findAllWithIngredients(): Promise<CompositeFoodWithIngredientsJoinRow[]> {

@@ -139,9 +139,10 @@ export const compositeFoodService = {
 
     const { created_at, updated_at, ...compositeFood } =
       await compositeFoodRepository.createWithIngredients(validatedInput);
-    const rows = await compositeFoodRepository.findIngredientRows(compositeFood.id);
-    const ingredients = formatIngredients(rows);
-    const macros = computeMacros(rows);
+    const compositeIngredientJoinRows =
+      await compositeFoodRepository.findIngredientRows(compositeFood.id);
+    const ingredients = formatIngredients(compositeIngredientJoinRows);
+    const macros = computeMacros(compositeIngredientJoinRows);
     const response: TCompositeFood = {
       id: compositeFood.id,
       name: compositeFood.name,
