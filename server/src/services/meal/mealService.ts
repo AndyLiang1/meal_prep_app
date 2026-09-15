@@ -413,8 +413,13 @@ export const mealService = {
           mealToDelete.meal_group_id,
           transaction,
         );
+        const lockedMealToDelete = mealsInGroup.find((mealRow) => mealRow.id === id);
+        if (!lockedMealToDelete) {
+          return false;
+        }
+
         const mealsToShift = mealsInGroup.filter(
-          (mealRow) => mealRow.sort_order > mealToDelete.sort_order,
+          (mealRow) => mealRow.sort_order > lockedMealToDelete.sort_order,
         );
 
         const deletedMeal = await mealRepository.delete(id, transaction);

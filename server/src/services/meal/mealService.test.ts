@@ -903,6 +903,64 @@ describe("mealService", () => {
       expect(mockedMealRepo.update).not.toHaveBeenCalled();
     });
 
+    it("should shift meals using the sort order read after the group lock", async () => {
+      const dinnerBeforeLock: MealRow = {
+        id: "meal-dinner",
+        name: "Dinner",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 2,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const dinnerAfterLock: MealRow = {
+        ...dinnerBeforeLock,
+        sort_order: 0,
+      };
+      const breakfastAfterLock: MealRow = {
+        id: "meal-breakfast",
+        name: "Breakfast",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 1,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const lunchAfterLock: MealRow = {
+        id: "meal-lunch",
+        name: "Lunch",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 2,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+
+      mockedMealRepo.findById.mockResolvedValue(dinnerBeforeLock);
+      mockedMealRepo.findByMealGroupId.mockResolvedValue([
+        dinnerAfterLock,
+        breakfastAfterLock,
+        lunchAfterLock,
+      ]);
+      mockedMealRepo.delete.mockResolvedValue(true);
+      mockedMealRepo.update.mockResolvedValue(null);
+
+      const deleted = await mealService.delete("meal-dinner");
+
+      expect(deleted).toBe(true);
+      expect(mockedMealRepo.delete).toHaveBeenCalledWith(
+        "meal-dinner",
+        mockTransaction,
+      );
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-breakfast",
+        { sortOrder: 0 },
+        mockTransaction,
+      );
+      expect(mockedMealRepo.update).toHaveBeenCalledWith(
+        "meal-lunch",
+        { sortOrder: 1 },
+        mockTransaction,
+      );
+    });
+
     it("should delete the first meal and shift remaining sort orders down", async () => {
       const firstMeal: MealRow = {
         id: "meal-first",
