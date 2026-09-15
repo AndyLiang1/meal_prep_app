@@ -366,7 +366,13 @@ export const mealService = {
       .execute(async (transaction) => {
         // Reorder, create, and delete all depend on the current sort orders in
         // the meal group. Lock the group so those requests cannot interleave.
-        await mealGroupRepository.findAndLockById(mealGroupId, transaction);
+        const mealGroup = await mealGroupRepository.findAndLockById(
+          mealGroupId,
+          transaction,
+        );
+        if (!mealGroup) {
+          throw new Error("Meal group not found");
+        }
 
         const existingMeals = await mealRepository.findByMealGroupId(
           mealGroupId,

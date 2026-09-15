@@ -618,6 +618,14 @@ describe("mealService", () => {
 
   describe("reorder", () => {
     const mockTransaction = {};
+    const mockMealGroup = {
+      id: MOCK_MEAL_GROUP_ID,
+      name: "Weekday Breakfast",
+      tags: ["chicken"],
+      display_as_default: false,
+      created_at: new Date("2026-06-01T12:00:00.000Z"),
+      updated_at: new Date("2026-06-01T12:00:00.000Z"),
+    };
 
     beforeEach(() => {
       mockedGetDb.mockReturnValue({
@@ -626,6 +634,18 @@ describe("mealService", () => {
             callback(mockTransaction),
         }),
       } as ReturnType<typeof getDb>);
+      mockedMealGroupRepo.findAndLockById.mockResolvedValue(mockMealGroup);
+    });
+
+    it("should throw when the meal group does not exist", async () => {
+      mockedMealGroupRepo.findAndLockById.mockResolvedValue(null);
+
+      await expect(mealService.reorder(MOCK_MEAL_GROUP_ID, ["meal-a"])).rejects.toThrow(
+        "Meal group not found",
+      );
+
+      expect(mockedMealRepo.findByMealGroupId).not.toHaveBeenCalled();
+      expect(mockedMealRepo.update).not.toHaveBeenCalled();
     });
 
     it("should lock the meal group and read meals on the same transaction", async () => {
