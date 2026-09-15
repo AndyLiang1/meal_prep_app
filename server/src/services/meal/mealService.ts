@@ -19,22 +19,12 @@ import {
   updateMealSchema,
   type CreateMealData,
 } from "../../schemas/meal.js";
-import type {
-  TIngredient,
-  TCompositeFood,
-  TCompositeFoodIngredient,
-  TMeal,
-  TMealFood,
-} from "../../types.js";
+import type { TIngredient, TMeal, TMealFood } from "../../types.js";
+import { buildCompositeFoods } from "../compositeFood/compositeFoodService.js";
 
 export interface UpdateMealInput {
   name?: string;
   foods?: MealFoodRef[];
-}
-
-function round2(value: number): number {
-  const scaled = Math.round(value * 100);
-  return scaled / 100;
 }
 
 function toIngredient(row: IngredientRow): TIngredient {
@@ -49,55 +39,6 @@ function toIngredient(row: IngredientRow): TIngredient {
     unit: row.unit,
   };
   return ingredient;
-}
-
-function toCompositeFood(
-  compositeFoodId: string,
-  joinRows: CompositeFoodWithIngredientsJoinRow[],
-): TCompositeFood {
-  const firstRow = joinRows[0];
-  const ingredients: TCompositeFoodIngredient[] = [];
-  let totalCalories = 0;
-  let totalProtein = 0;
-  let totalCarbs = 0;
-  let totalFats = 0;
-
-  for (const joinRow of joinRows) {
-    if (!joinRow.ingredient_id) continue;
-
-    const scale = (joinRow.amount ?? 0) / (joinRow.serving_size ?? 1);
-
-    const compositeFoodIngredient: TCompositeFoodIngredient = {
-      ingredientId: joinRow.ingredient_id,
-      name: joinRow.ingredient_name ?? "Unknown",
-      calories: joinRow.calories ?? 0,
-      protein: joinRow.protein ?? 0,
-      carbs: joinRow.carbs ?? 0,
-      fats: joinRow.fats ?? 0,
-      amount: joinRow.amount ?? 0,
-      unit: joinRow.unit ?? "GRAM",
-      servingSize: joinRow.serving_size ?? 0,
-    };
-    ingredients.push(compositeFoodIngredient);
-
-    totalCalories += (joinRow.calories ?? 0) * scale;
-    totalProtein += (joinRow.protein ?? 0) * scale;
-    totalCarbs += (joinRow.carbs ?? 0) * scale;
-    totalFats += (joinRow.fats ?? 0) * scale;
-  }
-
-  const compositeFood: TCompositeFood = {
-    id: compositeFoodId,
-    name: firstRow.name,
-    calories: round2(totalCalories),
-    protein: round2(totalProtein),
-    carbs: round2(totalCarbs),
-    fats: round2(totalFats),
-    servingSize: firstRow.cf_serving_size,
-    unit: firstRow.cf_unit,
-    ingredients,
-  };
-  return compositeFood;
 }
 
 interface FoodCatalog {
@@ -147,11 +88,11 @@ function toMealFoodFromIngredient(
 }
 
 function toMealFoodFromCompositeFood(
-  compositeFoodId: string,
   joinRows: CompositeFoodWithIngredientsJoinRow[],
   amount: number,
 ): TMealFood {
-  const compositeFood = toCompositeFood(compositeFoodId, joinRows);
+  const assembledCompositeFoods = buildCompositeFoods(joinRows);
+  const compositeFood = assembledCompositeFoods[0];
   const mealFood: TMealFood = { ...compositeFood, amount };
   return mealFood;
 }
@@ -171,11 +112,7 @@ function assembleMealFoodsFromCatalog(
     } else if (mealFoodRow.composite_food_id) {
       const joinRows = catalog.compositeFoodMap.get(mealFoodRow.composite_food_id);
       if (!joinRows || joinRows.length === 0) continue;
-      const mealFood = toMealFoodFromCompositeFood(
-        mealFoodRow.composite_food_id,
-        joinRows,
-        mealFoodRow.amount,
-      );
+      const mealFood = toMealFoodFromCompositeFood(joinRows, mealFoodRow.amount);
       foods.push(mealFood);
     }
   }

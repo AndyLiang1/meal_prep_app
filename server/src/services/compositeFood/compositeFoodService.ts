@@ -74,7 +74,7 @@ interface CompositeFoodAccumulator {
   ingredientRows: CompositeIngredientJoinRow[];
 }
 
-function buildCompositeFoods(
+export function buildCompositeFoods(
   joinRows: CompositeFoodWithIngredientsJoinRow[],
 ): TCompositeFood[] {
   const compositeFoodMap = new Map<string, CompositeFoodAccumulator>();
