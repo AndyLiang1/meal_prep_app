@@ -1,0 +1,50 @@
+---
+description: Always capture function-call results into a named variable before returning, to make breakpoints easy
+alwaysApply: true
+---
+
+# Debuggable Returns
+
+Never `return` a function/method call directly. Always capture the result into a named variable on its own line, then `return` that variable. This lets a debugger stop on the `return` line with the value already inspectable.
+
+Applies to all `return` statements: async (`return await fn(...)`), sync (`return fn(...)`), method chains (`return foo.bar().baz()`), built-in coercions (`return Number(x) > 0`), and `.map()`/`.filter()` callbacks.
+
+## Examples
+
+```typescript
+async findById(id: string): Promise<Row | null> {
+  return await getDb().selectFrom("t").selectAll().where("id", "=", id).executeTakeFirst();
+}
+
+async delete(id: string): Promise<boolean> {
+  const result = await getDb().deleteFrom("t").where("id", "=", id).executeTakeFirst();
+  return Number(result.numDeletedRows) > 0;
+}
+
+items.map((item) => {
+  return buildDetail(item);
+});
+```
+
+```typescript
+async findById(id: string): Promise<Row | null> {
+  const row = await getDb().selectFrom("t").selectAll().where("id", "=", id).executeTakeFirst();
+  return row ?? null;
+}
+
+async delete(id: string): Promise<boolean> {
+  const result = await getDb().deleteFrom("t").where("id", "=", id).executeTakeFirst();
+  const deletedCount = Number(result.numDeletedRows);
+  return deletedCount > 0;
+}
+
+items.map((item) => {
+  const detail = buildDetail(item);
+  return detail;
+});
+```
+
+## Allowed Exceptions
+
+- Early returns of literals / simple expressions: `return null;`, `return [];`, `return row ?? null;`, `return deletedCount > 0;` — these don't invoke a function, so a breakpoint on the line already shows everything.
+- Arrow-function shorthand with no body (`(x) => x * 2`) — there's no `return` statement to break on.
