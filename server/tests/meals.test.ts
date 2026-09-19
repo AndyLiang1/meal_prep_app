@@ -209,6 +209,33 @@ describe("Meals API", () => {
       expect(persistedMeal).toEqual(updateResponse.body);
     });
 
+    it("should clear all foods from a meal", async () => {
+      const mealGroup = await createMealGroup();
+      const mealId = mealGroup.meals[0].id;
+      const egg = await createIngredient({ name: "Egg" });
+
+      await request(app)
+        .patch(`/api/meals/${mealId}`)
+        .send({
+          foods: [{ ingredientId: egg.id, amount: 100 }],
+        });
+
+      const clearResponse = await request(app)
+        .patch(`/api/meals/${mealId}`)
+        .send({ foods: [] });
+
+      expect(clearResponse.status).toBe(200);
+      expect(clearResponse.body.foods).toEqual([]);
+
+      const listResponse = await request(app)
+        .get("/api/meals")
+        .query({ mealGroupId: mealGroup.id });
+      const persistedMeal = listResponse.body.find(
+        (meal: { id: string }) => meal.id === mealId,
+      );
+      expect(persistedMeal.foods).toEqual([]);
+    });
+
     it("should reject a food with both ingredientId and compositeFoodId", async () => {
       const mealGroup = await createMealGroup();
       const mealId = mealGroup.meals[0].id;

@@ -614,6 +614,54 @@ describe("mealService", () => {
         foods: [{ ...mockExpectedTIngredient1, amount: 100 }],
       });
     });
+
+    it("should clear all foods when the replacement list is empty", async () => {
+      const MEAL_ID = "meal-update-clear-foods";
+      const existingMealRow: MealRow = {
+        id: MEAL_ID,
+        name: "Original Name",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 0,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-01T12:00:00.000Z"),
+      };
+      const updatedMealRow: MealRow = {
+        id: MEAL_ID,
+        name: "Original Name",
+        meal_group_id: MOCK_MEAL_GROUP_ID,
+        sort_order: 0,
+        created_at: new Date("2026-06-01T12:00:00.000Z"),
+        updated_at: new Date("2026-06-02T12:00:00.000Z"),
+      };
+
+      const mockTransaction = {};
+      mockedMealRepo.findById.mockResolvedValue(existingMealRow);
+      mockedIngredientRepo.findByIds.mockResolvedValue([]);
+      mockedCompositeFoodRepo.findByIdsWithIngredients.mockResolvedValue([]);
+      mockedGetDb.mockReturnValue({
+        transaction: () => ({
+          execute: (callback: (transaction: unknown) => unknown) =>
+            callback(mockTransaction),
+        }),
+      } as ReturnType<typeof getDb>);
+      mockedMealRepo.replaceFoods.mockResolvedValue([]);
+      mockedMealRepo.update.mockResolvedValue(updatedMealRow);
+
+      const updatedMeal = await mealService.update(MEAL_ID, { foods: [] });
+
+      expect(mockedMealRepo.replaceFoods).toHaveBeenCalledWith(
+        MEAL_ID,
+        [],
+        mockTransaction,
+      );
+      expect(updatedMeal).toEqual({
+        id: MEAL_ID,
+        name: "Original Name",
+        mealGroupId: MOCK_MEAL_GROUP_ID,
+        sortOrder: 0,
+        foods: [],
+      });
+    });
   });
 
   describe("reorder", () => {

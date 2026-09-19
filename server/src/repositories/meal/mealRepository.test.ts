@@ -597,6 +597,28 @@ describe("mealRepository", () => {
         ]),
       );
     });
+
+    it("should clear all foods when the replacement list is empty", async () => {
+      const ingredient = await createIngredientRow("ingredient-clear");
+      const meal = await createTestMeal(sharedMealGroupId, "meal-clear-foods", [
+        { ingredientId: ingredient.id, amount: 100 },
+      ]);
+
+      const replacedMealFoodRows = await getDb()
+        .transaction()
+        .execute(async (transaction) => {
+          const mealFoodRows = await mealRepository.replaceFoods(
+            meal.id,
+            [],
+            transaction,
+          );
+          return mealFoodRows;
+        });
+
+      expect(replacedMealFoodRows).toEqual([]);
+      const persistedMealFoodRows = await mealRepository.findFoodsByMealId(meal.id);
+      expect(persistedMealFoodRows).toEqual([]);
+    });
   });
 
   describe("delete", () => {

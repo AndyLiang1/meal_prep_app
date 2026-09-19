@@ -27,7 +27,7 @@ export type CreateMealData = z.infer<typeof createMealSchema>;
 export const updateMealSchema = z
   .object({
     name: z.string().min(1).optional(),
-    foods: z.array(mealFoodSchema).min(1).optional(),
+    foods: z.array(mealFoodSchema).optional(),
   })
   .refine((data) => data.name !== undefined || data.foods !== undefined, {
     message: "At least one of name or foods must be provided",
