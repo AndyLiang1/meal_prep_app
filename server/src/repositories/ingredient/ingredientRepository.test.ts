@@ -73,6 +73,64 @@ describe("ingredientRepository", () => {
     });
   });
 
+  describe("findByIds", () => {
+    it("should return an empty array for empty input", async () => {
+      const ingredientRows = await ingredientRepository.findByIds([]);
+      expect(ingredientRows).toEqual([]);
+    });
+
+    it("should return the matching ingredient rows when all ids exist", async () => {
+      const ingredientFirst = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-batch-1" }),
+      );
+      const ingredientSecond = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-batch-2" }),
+      );
+
+      const ingredientRows = await ingredientRepository.findByIds([
+        ingredientFirst.id,
+        ingredientSecond.id,
+      ]);
+
+      expect(ingredientRows).toHaveLength(2);
+      expect(ingredientRows.map((ingredientRow) => ingredientRow.id).sort()).toEqual(
+        [ingredientFirst.id, ingredientSecond.id].sort(),
+      );
+    });
+
+    it("should return only the ingredients that exist for the given ids", async () => {
+      const persistedIngredient = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-batch-exists" }),
+      );
+
+      const ingredientRows = await ingredientRepository.findByIds([
+        persistedIngredient.id,
+        MISSING_ID,
+      ]);
+
+      expect(ingredientRows).toEqual([persistedIngredient]);
+    });
+
+    it("should return an empty array when none of the ids exist", async () => {
+      const ingredientRows = await ingredientRepository.findByIds([MISSING_ID]);
+      expect(ingredientRows).toEqual([]);
+    });
+
+    it("should return each matching ingredient only once when ids are repeated", async () => {
+      const persistedIngredient = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-batch-dedup" }),
+      );
+
+      const ingredientRows = await ingredientRepository.findByIds([
+        persistedIngredient.id,
+        persistedIngredient.id,
+        persistedIngredient.id,
+      ]);
+
+      expect(ingredientRows).toEqual([persistedIngredient]);
+    });
+  });
+
   describe("findExistingIds", () => {
     it("short-circuits and returns empty array for an empty input", async () => {
       const ids = await ingredientRepository.findExistingIds([]);

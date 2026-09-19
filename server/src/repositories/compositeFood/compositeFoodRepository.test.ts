@@ -264,6 +264,147 @@ describe("compositeFoodRepository", () => {
     });
   });
 
+  describe("findByIdsWithIngredients", () => {
+    it("should return an empty array for empty input", async () => {
+      const joinRows = await compositeFoodRepository.findByIdsWithIngredients([]);
+      expect(joinRows).toEqual([]);
+    });
+
+    it("should return an empty array when none of the ids exist", async () => {
+      const joinRows = await compositeFoodRepository.findByIdsWithIngredients([
+        MISSING_ID,
+      ]);
+      expect(joinRows).toEqual([]);
+    });
+
+    it("should return flattened join rows only for the requested composite foods", async () => {
+      const ingredientFirst = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-batch-a" }),
+      );
+      const ingredientSecond = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-batch-b" }),
+      );
+
+      const requestedCompositeFood =
+        await compositeFoodRepository.createWithIngredients({
+          name: "composite-batch-requested",
+          servingSize: 200,
+          unit: "GRAM",
+          ingredients: [{ ingredientId: ingredientFirst.id, amount: 50 }],
+        });
+      await compositeFoodRepository.createWithIngredients({
+        name: "composite-batch-other",
+        servingSize: 300,
+        unit: "GRAM",
+        ingredients: [{ ingredientId: ingredientSecond.id, amount: 150 }],
+      });
+
+      const joinRows = await compositeFoodRepository.findByIdsWithIngredients([
+        requestedCompositeFood.id,
+        MISSING_ID,
+      ]);
+
+      expect(joinRows).toEqual([
+        {
+          id: requestedCompositeFood.id,
+          name: requestedCompositeFood.name,
+          cf_serving_size: 200,
+          cf_unit: "GRAM",
+          ingredient_id: ingredientFirst.id,
+          ingredient_name: "ingredient-batch-a",
+          amount: 50,
+          serving_size: 100,
+          unit: "GRAM",
+          calories: 102,
+          protein: 1.1,
+          carbs: 1.2,
+          fats: 1.3,
+        },
+      ]);
+    });
+
+    it("should return one join row per ingredient link across multiple composite foods", async () => {
+      const ingredientFirst = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-multi-a" }),
+      );
+      const ingredientSecond = await ingredientRepository.create(
+        generateIngredientInput({ name: "ingredient-multi-b" }),
+      );
+
+      const compositeFoodFirst = await compositeFoodRepository.createWithIngredients({
+        name: "composite-multi-1",
+        servingSize: 200,
+        unit: "GRAM",
+        ingredients: [
+          { ingredientId: ingredientFirst.id, amount: 50 },
+          { ingredientId: ingredientSecond.id, amount: 150 },
+        ],
+      });
+      const compositeFoodSecond = await compositeFoodRepository.createWithIngredients({
+        name: "composite-multi-2",
+        servingSize: 250,
+        unit: "GRAM",
+        ingredients: [{ ingredientId: ingredientSecond.id, amount: 200 }],
+      });
+
+      const joinRows = await compositeFoodRepository.findByIdsWithIngredients([
+        compositeFoodFirst.id,
+        compositeFoodSecond.id,
+      ]);
+
+      expect(joinRows).toHaveLength(3);
+      expect(joinRows).toEqual(
+        expect.arrayContaining([
+          {
+            id: compositeFoodFirst.id,
+            name: compositeFoodFirst.name,
+            cf_serving_size: 200,
+            cf_unit: "GRAM",
+            ingredient_id: ingredientFirst.id,
+            ingredient_name: "ingredient-multi-a",
+            amount: 50,
+            serving_size: 100,
+            unit: "GRAM",
+            calories: 102,
+            protein: 1.1,
+            carbs: 1.2,
+            fats: 1.3,
+          },
+          {
+            id: compositeFoodFirst.id,
+            name: compositeFoodFirst.name,
+            cf_serving_size: 200,
+            cf_unit: "GRAM",
+            ingredient_id: ingredientSecond.id,
+            ingredient_name: "ingredient-multi-b",
+            amount: 150,
+            serving_size: 100,
+            unit: "GRAM",
+            calories: 102,
+            protein: 1.1,
+            carbs: 1.2,
+            fats: 1.3,
+          },
+          {
+            id: compositeFoodSecond.id,
+            name: compositeFoodSecond.name,
+            cf_serving_size: 250,
+            cf_unit: "GRAM",
+            ingredient_id: ingredientSecond.id,
+            ingredient_name: "ingredient-multi-b",
+            amount: 200,
+            serving_size: 100,
+            unit: "GRAM",
+            calories: 102,
+            protein: 1.1,
+            carbs: 1.2,
+            fats: 1.3,
+          },
+        ]),
+      );
+    });
+  });
+
   describe("findIngredientRows", () => {
     it("returns the join shape with ingredient macros, serving size, unit, and amount", async () => {
       const ingredient1 = await ingredientRepository.create(generateIngredientInput());
