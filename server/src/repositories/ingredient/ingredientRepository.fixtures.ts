@@ -1,20 +1,17 @@
-import type { CreateIngredientData } from "./ingredientRepository.js";
+import type { CreateIngredientData } from "../../schemas/ingredient.js";
 
-export const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export const MISSING_ID = "00000000-0000-0000-0000-000000000000";
-
-export const sampleIngredientInput: CreateIngredientData = {
+export const mockCreateIngredientData: CreateIngredientData = {
   name: "ingredient-1",
-  calories: 105,
-  protein: 1.3,
-  carbs: 27,
-  fats: 0.4,
+  calories: 102,
+  protein: 1.1,
+  carbs: 1.2,
+  fats: 1.3,
+  servingSize: 100,
+  unit: "GRAM",
 };
 
-export function buildIngredientInput(
-  overrides: Partial<CreateIngredientData> = {}
+export function generateIngredientInput(
+  overrides: Partial<CreateIngredientData> = {},
 ): CreateIngredientData {
-  return { ...sampleIngredientInput, ...overrides };
+  return { ...mockCreateIngredientData, ...overrides };
 }

@@ -1,25 +1,33 @@
 import { mealRepository } from "./mealRepository.js";
 import type { MealFoodRef, MealRow } from "./mealRepository.js";
-import { ingredientRepository } from "../ingredient/ingredientRepository.js";
-import { buildIngredientInput } from "../ingredient/ingredientRepository.fixtures.js";
+import { getDb } from "../../db/database.js";
 
 export async function createTestMeal(
+  mealGroupId: string,
   mealName = "meal-default",
-  ingredientFoodCount = 0
+  foods: MealFoodRef[] = [],
 ): Promise<MealRow> {
-  const foods: MealFoodRef[] = [];
-  for (let index = 0; index < ingredientFoodCount; index++) {
-    const ingredientRow = await ingredientRepository.create(
-      buildIngredientInput({
-        name: `${mealName}-ingredient-${index}`,
-      })
-    );
-    foods.push({ ingredientId: ingredientRow.id });
+  const existingMeals = await mealRepository.findByMealGroupId(mealGroupId);
+  const takenSortOrders = new Set(existingMeals.map((mealRow) => mealRow.sort_order));
+  let nextSortOrder = 0;
+  while (takenSortOrders.has(nextSortOrder)) {
+    nextSortOrder += 1;
   }
 
-  const meal = await mealRepository.createWithFoods({
+  const meal = await mealRepository.create({
     name: mealName,
-    foods,
+    mealGroupId,
+    sortOrder: nextSortOrder,
   });
+
+  if (foods.length === 0) {
+    return meal;
+  }
+
+  await getDb()
+    .transaction()
+    .execute(async (transaction) => {
+      await mealRepository.replaceFoods(meal.id, foods, transaction);
+    });
   return meal;
 }

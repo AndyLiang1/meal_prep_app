@@ -1,10 +1,10 @@
 import express from "express";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import { ingredientRoutes } from "./routes/ingredients.js";
-import { compositeFoodRoutes } from "./routes/compositeFoods.js";
-import { mealRoutes } from "./routes/meals.js";
-import { mealGroupRoutes } from "./routes/mealGroups.js";
+import { ingredientRoutes } from "./routes/ingredient/ingredients.js";
+import { compositeFoodRoutes } from "./routes/compositeFood/compositeFoods.js";
+import { mealRoutes } from "./routes/meal/meals.js";
+import { mealGroupRoutes } from "./routes/mealGroup/mealGroups.js";
 
 export function createApp() {
   const app = express();

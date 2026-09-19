@@ -1,0 +1,386 @@
+import {
+  mealRepository,
+  type MealRow,
+  type MealFoodRow,
+  type MealFoodRef,
+} from "../../repositories/meal/mealRepository.js";
+import { mealGroupRepository } from "../../repositories/mealGroup/mealGroupRepository.js";
+import {
+  ingredientRepository,
+  type IngredientRow,
+} from "../../repositories/ingredient/ingredientRepository.js";
+import {
+  compositeFoodRepository,
+  type CompositeFoodWithIngredientsJoinRow,
+} from "../../repositories/compositeFood/compositeFoodRepository.js";
+import { getDb } from "../../db/database.js";
+import {
+  createMealSchema,
+  updateMealSchema,
+  type CreateMealData,
+} from "../../schemas/meal.js";
+import type { TIngredient, TMeal, TMealFood } from "../../types.js";
+import { buildCompositeFoods } from "../compositeFood/compositeFoodService.js";
+
+export interface UpdateMealInput {
+  name?: string;
+  foods?: MealFoodRef[];
+}
+
+function toIngredient(row: IngredientRow): TIngredient {
+  const ingredient: TIngredient = {
+    id: row.id,
+    name: row.name,
+    calories: row.calories,
+    protein: row.protein,
+    carbs: row.carbs,
+    fats: row.fats,
+    servingSize: row.serving_size,
+    unit: row.unit,
+  };
+  return ingredient;
+}
+
+interface FoodCatalog {
+  ingredientMap: Map<string, IngredientRow>;
+  compositeFoodMap: Map<string, CompositeFoodWithIngredientsJoinRow[]>;
+}
+
+/**
+ * Grabs all the ingredient and composite food rows for this meal and returns
+ * a map of them by id.
+ */
+async function fetchFoodCatalog(mealFoodRows: MealFoodRow[]): Promise<FoodCatalog> {
+  const ingredientIds = mealFoodRows
+    .filter((foodRow) => foodRow.ingredient_id !== null)
+    .map((foodRow) => foodRow.ingredient_id!);
+
+  const compositeFoodIds = mealFoodRows
+    .filter((foodRow) => foodRow.composite_food_id !== null)
+    .map((foodRow) => foodRow.composite_food_id!);
+
+  const [ingredientRows, compositeFoodJoinRows] = await Promise.all([
+    ingredientRepository.findByIds(ingredientIds),
+    compositeFoodRepository.findByIdsWithIngredients(compositeFoodIds),
+  ]);
+
+  const ingredientMap = new Map(
+    ingredientRows.map((ingredientRow) => [ingredientRow.id, ingredientRow]),
+  );
+
+  const compositeFoodMap = new Map<string, CompositeFoodWithIngredientsJoinRow[]>();
+  for (const joinRow of compositeFoodJoinRows) {
+    const existing = compositeFoodMap.get(joinRow.id) ?? [];
+    existing.push(joinRow);
+    compositeFoodMap.set(joinRow.id, existing);
+  }
+
+  return { ingredientMap, compositeFoodMap };
+}
+
+function toMealFoodFromIngredient(
+  ingredientRow: IngredientRow,
+  amount: number,
+): TMealFood {
+  const ingredient = toIngredient(ingredientRow);
+  const mealFood: TMealFood = { ...ingredient, amount };
+  return mealFood;
+}
+
+function toMealFoodFromCompositeFood(
+  joinRows: CompositeFoodWithIngredientsJoinRow[],
+  amount: number,
+): TMealFood {
+  const assembledCompositeFoods = buildCompositeFoods(joinRows);
+  const compositeFood = assembledCompositeFoods[0];
+  const mealFood: TMealFood = { ...compositeFood, amount };
+  return mealFood;
+}
+
+function assembleMealFoodsFromCatalog(
+  mealFoodRows: MealFoodRow[],
+  catalog: FoodCatalog,
+): TMealFood[] {
+  const foods: TMealFood[] = [];
+
+  for (const mealFoodRow of mealFoodRows) {
+    if (mealFoodRow.ingredient_id) {
+      const ingredientRow = catalog.ingredientMap.get(mealFoodRow.ingredient_id);
+      if (!ingredientRow) continue;
+      const mealFood = toMealFoodFromIngredient(ingredientRow, mealFoodRow.amount);
+      foods.push(mealFood);
+    } else if (mealFoodRow.composite_food_id) {
+      const joinRows = catalog.compositeFoodMap.get(mealFoodRow.composite_food_id);
+      if (!joinRows || joinRows.length === 0) continue;
+      const mealFood = toMealFoodFromCompositeFood(joinRows, mealFoodRow.amount);
+      foods.push(mealFood);
+    }
+  }
+
+  return foods;
+}
+
+function refsToMealFoodRows(foodRefs: MealFoodRef[]): MealFoodRow[] {
+  const mealFoodRows = foodRefs.map((foodRef) => ({
+    id: "",
+    meal_id: "",
+    ingredient_id: foodRef.ingredientId ?? null,
+    composite_food_id: foodRef.compositeFoodId ?? null,
+    amount: foodRef.amount,
+  }));
+  return mealFoodRows;
+}
+
+function assertMealFoodRefsExist(
+  foodRefs: MealFoodRef[],
+  foodCatalog: FoodCatalog,
+): void {
+  const uniqueIngredientIds = [
+    ...new Set(
+      foodRefs
+        .filter((foodRef) => foodRef.ingredientId)
+        .map((foodRef) => foodRef.ingredientId!),
+    ),
+  ];
+  const uniqueCompositeFoodIds = [
+    ...new Set(
+      foodRefs
+        .filter((foodRef) => foodRef.compositeFoodId)
+        .map((foodRef) => foodRef.compositeFoodId!),
+    ),
+  ];
+
+  if (
+    foodCatalog.ingredientMap.size !== uniqueIngredientIds.length ||
+    foodCatalog.compositeFoodMap.size !== uniqueCompositeFoodIds.length
+  ) {
+    throw new Error("One or more meal foods not found");
+  }
+}
+
+function findLowestAvailableSortOrder(existingSortOrders: Set<number>): number {
+  let candidateSortOrder = 0;
+  while (existingSortOrders.has(candidateSortOrder)) {
+    candidateSortOrder += 1;
+  }
+  return candidateSortOrder;
+}
+
+export function toMeal(mealRow: MealRow, foods: TMealFood[] = []): TMeal {
+  const meal: TMeal = {
+    id: mealRow.id,
+    name: mealRow.name,
+    mealGroupId: mealRow.meal_group_id,
+    sortOrder: mealRow.sort_order,
+    foods,
+  };
+  return meal;
+}
+
+export const mealService = {
+  async create(input: CreateMealData): Promise<TMeal> {
+    const validatedMeal = createMealSchema.safeParse(input);
+    if (!validatedMeal.success) {
+      throw new Error("Invalid meal data");
+    }
+    const validatedInput = validatedMeal.data;
+
+    const createdMeal = await getDb()
+      .transaction()
+      .execute(async (transaction) => {
+        // We depend on the current state of the sort orders in the meal group.
+        // So lock the meal group so other requests cannot change the sort orders while we are deleting.
+        const mealGroup = await mealGroupRepository.findAndLockById(
+          validatedInput.mealGroupId,
+          transaction,
+        );
+        if (!mealGroup) {
+          throw new Error("Meal group not found");
+        }
+
+        const existingMeals = await mealRepository.findByMealGroupId(
+          validatedInput.mealGroupId,
+          transaction,
+        );
+        const existingSortOrders = new Set(
+          existingMeals.map((mealRow) => mealRow.sort_order),
+        );
+        const resolvedSortOrder = findLowestAvailableSortOrder(existingSortOrders);
+
+        const mealRecord = await mealRepository.create(
+          {
+            name: validatedInput.name,
+            mealGroupId: validatedInput.mealGroupId,
+            sortOrder: resolvedSortOrder,
+          },
+          transaction,
+        );
+
+        const meal = toMeal(mealRecord);
+        return meal;
+      });
+    return createdMeal;
+  },
+
+  async list(mealGroupId: string): Promise<TMeal[]> {
+    const mealRows = await mealRepository.findByMealGroupId(mealGroupId);
+    const mealIds = mealRows.map((mealRow) => mealRow.id);
+    const allMealFoodRows = await mealRepository.findFoodsByMealIds(mealIds);
+
+    const catalog = await fetchFoodCatalog(allMealFoodRows);
+
+    const mealFoodRowsByMealId = new Map<string, MealFoodRow[]>();
+    for (const foodRow of allMealFoodRows) {
+      const existing = mealFoodRowsByMealId.get(foodRow.meal_id) ?? [];
+      existing.push(foodRow);
+      mealFoodRowsByMealId.set(foodRow.meal_id, existing);
+    }
+
+    const meals: TMeal[] = mealRows.map((mealRow) => {
+      const mealFoodRowsForMeal = mealFoodRowsByMealId.get(mealRow.id) ?? [];
+      const foods = assembleMealFoodsFromCatalog(mealFoodRowsForMeal, catalog);
+      const meal = toMeal(mealRow, foods);
+      return meal;
+    });
+    return meals;
+  },
+
+  async update(id: string, input: UpdateMealInput): Promise<TMeal | null> {
+    const validatedMeal = updateMealSchema.safeParse(input);
+    if (!validatedMeal.success) {
+      throw new Error("Invalid meal data");
+    }
+    const validatedInput = validatedMeal.data;
+
+    const existingMeal = await mealRepository.findById(id);
+    if (!existingMeal) return null;
+
+    if (validatedInput.foods !== undefined) {
+      const mealFoodRefs = validatedInput.foods;
+      const mealFoodRows = refsToMealFoodRows(mealFoodRefs);
+      const foodCatalog = await fetchFoodCatalog(mealFoodRows);
+      assertMealFoodRefsExist(mealFoodRefs, foodCatalog);
+
+      const mealUpdateInput: { name?: string } = {};
+      if (validatedInput.name !== undefined) {
+        mealUpdateInput.name = validatedInput.name;
+      }
+
+      const updatedMealRecord = await getDb()
+        .transaction()
+        .execute(async (transaction) => {
+          await mealRepository.replaceFoods(id, mealFoodRefs, transaction);
+          const updatedRecord = await mealRepository.update(
+            id,
+            mealUpdateInput,
+            transaction,
+          );
+          return updatedRecord;
+        });
+
+      if (!updatedMealRecord) return null;
+
+      const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
+      const updatedMeal = toMeal(updatedMealRecord, mealFoods);
+      return updatedMeal;
+    }
+
+    const updatedMealRecord = await mealRepository.update(id, {
+      name: validatedInput.name,
+    });
+    if (!updatedMealRecord) return null;
+
+    const mealFoodRows = await mealRepository.findFoodsByMealId(updatedMealRecord.id);
+    const foodCatalog = await fetchFoodCatalog(mealFoodRows);
+    const mealFoods = assembleMealFoodsFromCatalog(mealFoodRows, foodCatalog);
+    const updatedMeal = toMeal(updatedMealRecord, mealFoods);
+    return updatedMeal;
+  },
+
+  async reorder(mealGroupId: string, mealIds: string[]): Promise<void> {
+    await getDb()
+      .transaction()
+      .execute(async (transaction) => {
+        // Reorder, create, and delete all depend on the current sort orders in
+        // the meal group. Lock the group so those requests cannot interleave.
+        const mealGroup = await mealGroupRepository.findAndLockById(
+          mealGroupId,
+          transaction,
+        );
+        if (!mealGroup) {
+          throw new Error("Meal group not found");
+        }
+
+        const existingMeals = await mealRepository.findByMealGroupId(
+          mealGroupId,
+          transaction,
+        );
+        const existingMealIds = new Set(existingMeals.map((mealRow) => mealRow.id));
+
+        const uniqueRequestedMealIds = new Set(mealIds);
+        const allIdsExist = mealIds.every((mealId) => existingMealIds.has(mealId));
+        const hasDuplicateMealIds = uniqueRequestedMealIds.size !== mealIds.length;
+        if (
+          !allIdsExist ||
+          hasDuplicateMealIds ||
+          mealIds.length !== existingMeals.length
+        ) {
+          throw new Error("Meal IDs do not match the meals in this group");
+        }
+
+        await Promise.all(
+          mealIds.map((mealId, sortOrder) =>
+            mealRepository.update(mealId, { sortOrder }, transaction),
+          ),
+        );
+      });
+  },
+
+  async delete(id: string): Promise<boolean> {
+    const deleted = await getDb()
+      .transaction()
+      .execute(async (transaction) => {
+        const mealToDelete = await mealRepository.findById(id, transaction);
+        if (!mealToDelete) {
+          return false;
+        }
+
+        // We depend on the current state of the sort orders in the meal group.
+        // So lock the meal group so other requests cannot change the sort orders while we are deleting.
+        await mealGroupRepository.findAndLockById(
+          mealToDelete.meal_group_id,
+          transaction,
+        );
+
+        const mealsInGroup = await mealRepository.findByMealGroupId(
+          mealToDelete.meal_group_id,
+          transaction,
+        );
+        const lockedMealToDelete = mealsInGroup.find((mealRow) => mealRow.id === id);
+        if (!lockedMealToDelete) {
+          return false;
+        }
+
+        const mealsToShift = mealsInGroup.filter(
+          (mealRow) => mealRow.sort_order > lockedMealToDelete.sort_order,
+        );
+
+        const deletedMeal = await mealRepository.delete(id, transaction);
+        if (!deletedMeal) {
+          return false;
+        }
+
+        await Promise.all(
+          mealsToShift.map((mealRow) =>
+            mealRepository.update(
+              mealRow.id,
+              { sortOrder: mealRow.sort_order - 1 },
+              transaction,
+            ),
+          ),
+        );
+        return true;
+      });
+    return deleted;
+  },
+};

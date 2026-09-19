@@ -5,9 +5,12 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U>
+    ? ColumnType<S, I | undefined, U>
+    : ColumnType<T, T | undefined, T>;
+
+export type IngredientUnit = "GRAM" | "MILLILITER" | "PIECE";
 
 export type Numeric = ColumnType<number, number | string, number | string>;
 
@@ -17,14 +20,16 @@ export interface CompositeFood {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   name: string;
+  serving_size: Numeric;
+  unit: IngredientUnit;
   updated_at: Generated<Timestamp>;
 }
 
 export interface CompositeFoodIngredient {
+  amount: Numeric;
   composite_food_id: string;
   id: Generated<string>;
   ingredient_id: string;
-  quantity: Generated<Numeric>;
 }
 
 export interface Ingredient {
@@ -35,17 +40,22 @@ export interface Ingredient {
   id: Generated<string>;
   name: string;
   protein: Numeric;
+  serving_size: Numeric;
+  unit: IngredientUnit;
   updated_at: Generated<Timestamp>;
 }
 
 export interface Meal {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
+  meal_group_id: string;
   name: string;
+  sort_order: number;
   updated_at: Generated<Timestamp>;
 }
 
 export interface MealFood {
+  amount: Numeric;
   composite_food_id: string | null;
   id: Generated<string>;
   ingredient_id: string | null;
@@ -57,15 +67,8 @@ export interface MealGroup {
   display_as_default: Generated<boolean>;
   id: Generated<string>;
   name: string;
-  tag: string;
+  tags: Generated<string[]>;
   updated_at: Generated<Timestamp>;
-}
-
-export interface MealGroupMeal {
-  id: Generated<string>;
-  meal_group_id: string;
-  meal_id: string;
-  sort_order: Generated<number>;
 }
 
 export interface DB {
@@ -75,5 +78,4 @@ export interface DB {
   meal: Meal;
   meal_food: MealFood;
   meal_group: MealGroup;
-  meal_group_meal: MealGroupMeal;
 }
